@@ -502,7 +502,9 @@ window.addEventListener('mousemove',function(e){
   if(!drag) return; var p=imgXY(e);
   drag.x=Math.min(drag.px,p.x);drag.y=Math.min(drag.py,p.y);
   drag.w=Math.abs(p.x-drag.px);drag.h=Math.abs(p.y-drag.py);
-  if(drag.w*scale>6||drag.h*scale>6) drag.moved=true;
+  // 阈值按**屏幕像素**算：触控板单击时手会微微动，6px 就会被当成拖框，
+  // 结果"单击选不中"。放到 10px，并且要求位移明显才算拖。
+  if(drag.w*scale>10||drag.h*scale>10) drag.moved=true;
   draw();
 });
 window.addEventListener('mouseup',function(e){
@@ -528,10 +530,13 @@ window.addEventListener('mouseup',function(e){
     return;
   }
   if(!drag) return; var d=drag; drag=null;
-  if(!d.moved){
+  // 小抖动也算单击：位移不到 25 屏幕像素就当点击（触控板/手抖）
+  var _small = Math.max(d.w, d.h) * scale < 25;
+  if(!d.moved || _small){
     if(isDbl){isDbl=false;draw();return;}
     if(kcMode){showKcPicker(d.px,d.py);draw();return;}
     var n=hitNote(d.px,d.py);
+    log('click ('+Math.round(d.px)+','+Math.round(d.py)+') → '+(n?('#'+n.id):'空'));
     if(n){ showSel(n, d.ctrl); }
     else if(!d.ctrl){ clearSel(); hideIns(); }   // 单击空白只取消选中
     draw(); return;
