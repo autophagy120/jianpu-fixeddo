@@ -431,15 +431,18 @@ def render_fixed_image(page: core.Page, pairs: Sequence[Tuple[core.Note, XO.OcrN
             # （G 调的 `6` = E5，绝对音高就落在 【】 里），照它画会给原谱
             # 没有点的音也加上点——实测整行点全挪位。图片版是"原位替换"，
             # 点必须和原来的位置一一对应。
-            octv = int(o.octave)
-            # 只有**转调段**才改用绝对音高反推八度：原调段保持"沿用原谱八度点"
-            # （原位替换，点必须一一对应）。转调后同一个音在新调里的度数变了，
-            # 沿用原点数就会差八度，必须按绝对音高重算。
-            if keys is not None and k_pc != key_pc:
+            # 八度点必须按**目标调里的实际音高**来画，不能沿用原谱的点。
+            # 反例（1=D → 1=C）：原谱 `7` 是 C#5，写成固定调是 `#1` **带一个高音点**；
+            # 沿用原谱的"无点"就会画成低一个八度的 C#4 —— 音高直接错八度。
+            # 只有当这一段本来就等于目标调（k_pc == ref_pc，映射是恒等）时，
+            # 原谱的点和 token 里的点才必然一致，才可以直接用原谱点。
+            if k_pc == ref_pc:
+                octv = int(o.octave)
+            else:
                 try:
                     _d, _a, octv = M.abs_to_movable(p_abs, ref_pc)
                 except Exception:
-                    octv = int(o.octave)
+                    octv = int(_abs_oct)
 
             prev_k = idxs[pos - 1] if pos > 0 else None
             next_k = idxs[pos + 1] if pos + 1 < len(idxs) else None

@@ -52,3 +52,8 @@ work/check_*.py
 work/_show_*.py
 work/_keep.txt
 work/_rest.txt
+work/diag_*.py
+work/spy_*.py
+work/check_mapping.py
+work/check_pitch*.py
+work/check_dots*.py
