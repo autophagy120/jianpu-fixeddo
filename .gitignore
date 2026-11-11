@@ -46,3 +46,9 @@ library.json.*
 *.pt
 jp/out_synth_preview.png
 work/samples/*.jpg
+
+# 临时诊断脚本
+work/check_*.py
+work/_show_*.py
+work/_keep.txt
+work/_rest.txt
