@@ -538,7 +538,6 @@ window.addEventListener('mouseup',function(e){
   // 小抖动也算单击：位移不到 25 屏幕像素就当点击（触控板/手抖）
   var _small = Math.max(d.w, d.h) * scale < 25;
   if(!d.moved || _small){
-    if(isDbl){isDbl=false;draw();return;}
     if(kcMode){showKcPicker(d.px,d.py);draw();return;}
     var n=hitNote(d.px,d.py);
     log('click ('+Math.round(d.px)+','+Math.round(d.py)+') → '+(n?('#'+n.id):'空'));
