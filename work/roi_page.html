@@ -81,8 +81,9 @@ button[disabled]{opacity:.5;cursor:progress}
       </div>
       <div class="card" id="insCard" style="display:none">
         <h2>插入音符　<span id="insInfo"></span></h2>
-        <div class="t2">数字</div><div class="g" id="insDigits"></div>
-        <div class="t2">八度（点一下即插入）</div><div class="g" id="insOcts"></div>
+        <div class="t2">点数字 = 直接插入（八度按当前的）</div><div class="g" id="insDigits"></div>
+        <div class="t2">八度点（点一下 = 带点插入）</div><div class="g" id="insOcts"></div>
+        <div class="t2">键盘 0-7 直接插 · Esc 取消</div>
         <div class="row"><button onclick="hideIns()">取消</button></div>
       </div>
       <div class="card" id="roiCard" style="display:none">
@@ -124,7 +125,7 @@ var kcMode=false, kcAt=null, ST={notes:[],key_changes:[],source_key:'',target_ke
 var img=new Image(), imgOrig=new Image(), showOrig=false, NOTES=[], scale=1, zoomPct=100;
 var base=document.createElement('canvas'), bctx=base.getContext('2d'), baseReady=false;
 var moveDrag=null;   // Alt+拖动 = 微调音符坐标
-var selId=null, selIds=[], selData=null, selDigit='6', roi=null, plans=[], drag=null, insAt=null, insDigit='6', isDbl=false, clickTimer=null;
+var selId=null, selIds=[], selData=null, selDigit='6', roi=null, plans=[], drag=null, insAt=null, insDigit='6', insOct=0, clickTimer=null;
 
 function log(s){var e=document.getElementById('log');e.textContent=(new Date().toLocaleTimeString()+'  '+s+'\n'+e.textContent).slice(0,2000);}
 var pending=0;
@@ -463,14 +464,16 @@ function jumpNext(){
 }
 
 function showIns(x,y){
-  insAt={x:x,y:y}; insDigit='6';
+  insAt={x:x,y:y}; insDigit='6'; insOct=0;
   document.getElementById('insCard').style.display='block';
   document.getElementById('insInfo').textContent='位置 '+Math.round(x)+','+Math.round(y);
-  buildDigits('insDigits','6',function(ch){insDigit=ch;
+  buildDigits('insDigits','6',function(ch){
+    insDigit=ch;
     var bs=document.getElementById('insDigits').children;
     for(var i=0;i<bs.length;i++) bs[i].className=(bs[i].textContent===ch?'on':'');
+    doInsert(insOct);
   });
-  buildOcts('insOcts',0,function(v){doInsert(v);});
+  buildOcts('insOcts',0,function(v){insOct=v; doInsert(v);});
 }
 function hideIns(){document.getElementById('insCard').style.display='none';insAt=null;}
 function doInsert(oct){
@@ -530,7 +533,8 @@ window.addEventListener('mouseup',function(e){
     clearTimeout(clickTimer);
     clickTimer=setTimeout(function(){
       var n=hitNote(d.px,d.py);
-      if(n){showSel(n, d.ctrl);}else if(!d.ctrl){clearSel();}
+      if(n){ showSel(n, d.ctrl); }
+      else if(!d.ctrl){ clearSel(); showIns(d.px,d.py); }
     },170);
     draw(); return;
   }
@@ -541,7 +545,7 @@ window.addEventListener('mouseup',function(e){
   });
 });
 cv.addEventListener('dblclick',function(e){
-  isDbl=true; clearTimeout(clickTimer);
+  clearTimeout(clickTimer);
   if(kcMode){return;}
   var p=imgXY(e);
   var n=hitNote(p.x,p.y);
@@ -630,7 +634,15 @@ window.addEventListener('keydown',function(e){
     if(selIds.some(function(x){return x>=0;})){e.preventDefault();delSelected();}
     else if(selId!==null&&selId>=0){e.preventDefault();delNote();}
   }
-  if(e.key==='Escape'){clearSel();}
+  if(e.key==='Escape'){clearSel();hideIns();}
+  if(insAt && /^[0-7]$/.test(e.key)){
+    e.preventDefault(); insDigit=e.key; doInsert(insOct); return;
+  }
+  if(insAt && (e.key==='ArrowUp'||e.key==='ArrowDown')){
+    e.preventDefault();
+    insOct=Math.max(-2,Math.min(2,insOct+(e.key==='ArrowUp'?1:-1)));
+    document.getElementById('insInfo').textContent='八度 '+insOct;
+  }
   if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){e.preventDefault();undo();}
 });
 window.addEventListener('keyup',function(e){ if(e.key==='Control'&&showOrig){showOrig=false;draw();} });

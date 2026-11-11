@@ -117,9 +117,9 @@ input[type=text],select{background:#12171d;color:var(--fg);border:1px solid var(
 <div id="imp">
   <details open><summary>导入</summary>
     <div class="row">
-      <button class="p" onclick="impOpen('manual')" title="自己填谱名和调号，OCR 照常跑，不调 AI">人工导入</button>
-      <button onclick="impOpen('auto')" title="自动 OCR + AI 认歌名 + 自动分份">AI 批量导入</button>
-      <span class="hint" id="upstate">人工 = 你定谱名（仍会本地 OCR）· AI = 全自动认名分份</span>
+      <button class="p" onclick="impOpen('manual')" title="一次导入一份谱（多页）：你填谱名/调号，OCR 照常本地跑，不调 AI">人工导入（一份谱）</button>
+      <button onclick="impOpen('auto')" title="文件夹/多图/路径 → 自动 OCR → AI 认歌名 → 自动分份">AI 批量导入</button>
+      <span class="hint" id="upstate">人工 = 一份谱、你定名；AI = 原来自动导入流程</span>
     </div>
   </details>
 </div>
@@ -577,64 +577,117 @@ function runGroupTitles(){
     if(r.ok){ toast('已按 AI 标题更新 '+r.updated+' 个谱名'); refresh(); }
   });
 }
+var IMP_MODE='manual', IMP_DIR_FILES=[];
 function impOpen(mode){
-  IMP_MODE = mode;
-  var manual = (mode==='manual');
-  document.getElementById('mTitleH').textContent = manual ? '人工导入' : 'AI 批量导入';
+  IMP_MODE=mode; IMP_DIR_FILES=[];
+  var manual=(mode==='manual');
+  document.getElementById('mTitleH').textContent = manual?'人工导入（一份谱）':'AI 批量导入';
   document.getElementById('mDesc').textContent = manual
-    ? '你自己填谱名和调号；OCR 照常在本地跑（不调 AI、不花 token）。'
-    : '自动本地 OCR → AI 认歌名 → 自动分份。谱名可留空，让 AI 填。';
-  document.getElementById('mTitleRow').style.display = manual ? 'flex' : 'none';
-  document.getElementById('mGroupRow').style.display = manual ? 'flex' : 'none';
+    ? '一次导入一份谱（可多页）：你填谱名/调号，OCR 照常本地跑，不调 AI、不花 token。'
+    : '原来的自动流程：文件夹/图片/路径 → 本地 OCR → AI 认歌名 → 自动分份。';
+  document.getElementById('mManualBox').style.display = manual?'block':'none';
+  document.getElementById('mAutoBox').style.display = manual?'none':'block';
   var keys=['C','D','E','F','G','A','B','#C','bD','#F','bB'];
   ['mKey','mTarget'].forEach(function(id){
     var el=document.getElementById(id);
-    if(el.options.length<=1){
+    if(el.options.length===0){
       var o=document.createElement('option'); o.value=''; o.textContent='（自动/不设）'; el.appendChild(o);
       keys.forEach(function(k){var o2=document.createElement('option');o2.value=k;o2.textContent='1='+k;el.appendChild(o2);});
     }
     el.value='';
   });
-  api('/api/lib',{}).then(function(j){
-    var g=document.getElementById('mGroup'); g.length=1;
-    var gs=Object.keys(j.groups||{}).map(function(k){return j.groups[k];})
-             .sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
-    gs.forEach(function(x){var o=document.createElement('option');o.value=x.id;
-      o.textContent='加入：'+(x.name||'(未命名)');g.appendChild(o);});
-  });
+  document.getElementById('mDirState').textContent='整棵目录，每页都会 OCR';
+  document.getElementById('mPath').value='';
   document.getElementById('mState').textContent='';
+  document.getElementById('mGo').disabled=false;
   document.getElementById('mModal').style.display='flex';
 }
 function impClose(){document.getElementById('mModal').style.display='none';}
-function impSubmit(){
-  var f=document.getElementById('mFiles').files;
-  if(!f||!f.length){toast('先选谱面图片');return;}
-  var fd=new FormData();
-  for(var i=0;i<f.length;i++) fd.append('files',f[i],f[i].name);
-  fd.append('title',(document.getElementById('mTitle').value||''));
-  fd.append('key',document.getElementById('mKey').value||'');
-  fd.append('target',document.getElementById('mTarget').value||'');
-  var g=document.getElementById('mGroup').value; if(g) fd.append('group_id',g);
-  var url = IMP_MODE==='auto' ? '/api/import_auto' : '/api/import_manual';
+function pickDir(inp){
+  IMP_DIR_FILES=Array.prototype.slice.call(inp.files||[]);
+  document.getElementById('mDirState').textContent='已选 '+IMP_DIR_FILES.length+' 个文件';
+}
+function pollJob(label){
   var st=document.getElementById('mState');
-  st.textContent='上传中…';
+  var t=setInterval(function(){
+    fetch('/api/job').then(function(x){return x.json();}).then(function(j){
+      if(j.running){ st.textContent=label+'：'+(j.msg||'')+(j.total?('　'+j.done+'/'+j.total):''); }
+      else{
+        clearInterval(t);
+        st.textContent=(j.error?('出错：'+j.error):(j.msg||'完成'));
+        document.getElementById('mGo').disabled=false;
+        toast('导入完成'); refresh();
+      }
+    });
+  },900);
+}
+function impSubmit(){
+  var st=document.getElementById('mState');
   document.getElementById('mGo').disabled=true;
-  fetch(url,{method:'POST',body:fd}).then(function(r){return r.json();})
-    .then(function(r){
-      if(!r.ok){st.textContent='失败：'+(r.error||'');document.getElementById('mGo').disabled=false;return;}
-      st.textContent='处理中（OCR 比较慢，请等）…';
-      var t=setInterval(function(){
-        fetch('/api/job').then(function(x){return x.json();}).then(function(j){
-          if(j.running){ st.textContent = (j.msg||'处理中') + '　' + (j.total?(j.done+'/'+j.total):''); }
-          else {
-            clearInterval(t);
-            st.textContent = j.error ? ('出错：'+j.error) : (j.msg||'完成');
-            document.getElementById('mGo').disabled=false;
-            toast('导入完成'); refresh();
-          }
+  if(IMP_MODE==='manual'){
+    var f=document.getElementById('mFiles').files;
+    var title=(document.getElementById('mTitle').value||'').trim();
+    if(!f||!f.length){toast('先选多页图片');document.getElementById('mGo').disabled=false;return;}
+    if(!title){toast('谱名必填');document.getElementById('mGo').disabled=false;return;}
+    var fd=new FormData();
+    for(var i=0;i<f.length;i++) fd.append('files',f[i],f[i].name);
+    fd.append('title',title);
+    fd.append('key',document.getElementById('mKey').value||'');
+    fd.append('target',document.getElementById('mTarget').value||'');
+    st.textContent='上传中…';
+    fetch('/api/import_manual',{method:'POST',body:fd}).then(function(r){return r.json();})
+      .then(function(r){
+        if(!r.ok){st.textContent='失败：'+(r.error||'');document.getElementById('mGo').disabled=false;return;}
+        pollJob('人工导入');
+      });
+    return;
+  }
+  // AI 批量：先收文件/路径，再沿用原来的 OCR → AI 分类 → 分份
+  var root=(document.getElementById('mPath').value||'').trim();
+  var f2=document.getElementById('mFiles2').files;
+  var chain=Promise.resolve(true);
+  if(root){
+    st.textContent='按路径登记…';
+    chain=api('/api/import',{root:root,key:''}).then(function(r){
+      if(!r.ok) throw new Error(r.error||'路径登记失败');
+      return true;
+    });
+  }
+  var files=IMP_DIR_FILES.concat(Array.prototype.slice.call(f2||[]));
+  if(files.length){
+    chain=chain.then(function(){
+      st.textContent='上传 '+files.length+' 个文件…';
+      var fd=new FormData();
+      files.forEach(function(x){fd.append('files',x,x.webkitRelativePath||x.name);});
+      return fetch('/api/upload',{method:'POST',body:fd}).then(function(r){return r.json();})
+        .then(function(r){ if(!r.ok) throw new Error(r.error||'上传失败'); return true; });
+    });
+  }
+  chain.then(function(){
+    st.textContent='启动 OCR…';
+    return api('/api/process_all',{mode:'ocr'});
+  }).then(function(){
+    pollJob('OCR');
+    waitJob(function(){
+      st.textContent='AI 认歌名…';
+      api('/api/classify',{}).then(function(){
+        pollJob('AI 认名');
+        waitJob(function(){
+          st.textContent='自动分份…';
+          api('/api/group_by_title',{}).then(function(){
+            pollJob('自动分份');
+          });
         });
-      }, 800);
-    }).catch(function(e){st.textContent='出错：'+e;document.getElementById('mGo').disabled=false;});
+      });
+    });
+  }).catch(function(e){ st.textContent='出错：'+e.message; document.getElementById('mGo').disabled=false; });
+}
+function waitJob(fn){
+  var t=setInterval(function(){
+    fetch('/api/job').then(function(x){return x.json();}).then(function(j){
+      if(!j.running){ clearInterval(t); fn(); }
+    });
+  },900);
 }
 function editsInfo(){
   document.getElementById('setMenu').style.display='none';
@@ -844,29 +897,48 @@ document.getElementById('root').value='E:\\DeepSeek-Harness\\工作目录\\测�
 var _gs=document.getElementById('gsort'); if(_gs) _gs.value=SORT_MODE;
 refresh().then(function(){ rescan(true); });
 </script><div id="mModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center">
-  <div style="background:#151b23;border:1px solid #2b333d;border-radius:12px;padding:18px 20px;width:540px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+  <div style="background:#151b23;border:1px solid #2b333d;border-radius:12px;padding:18px 20px;width:560px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)">
     <h3 style="margin:0 0 8px" id="mTitleH">导入</h3>
     <div class="hint" id="mDesc" style="margin-bottom:10px"></div>
-    <div class="row" id="mTitleRow" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <span style="width:72px;color:#9aa5b1">谱名</span>
-      <input id="mTitle" placeholder="例如：纯蓝（留空则用文件名）" style="flex:1">
+
+    <div id="mManualBox">
+      <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="width:72px;color:#9aa5b1">谱名</span>
+        <input id="mTitle" placeholder="这一份谱的名字（必填）" style="flex:1">
+      </div>
+      <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="width:72px;color:#9aa5b1">原调</span>
+        <select id="mKey" style="flex:1"></select>
+      </div>
+      <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="width:72px;color:#9aa5b1">目标调</span>
+        <select id="mTarget" style="flex:1"></select>
+      </div>
+      <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="width:72px;color:#9aa5b1">多页图片</span>
+        <input type="file" id="mFiles" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.avif" style="flex:1">
+      </div>
+      <div class="hint" style="margin-bottom:10px">多页按文件名排序，作为同一份谱的第 1、2、3 页。</div>
     </div>
-    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <span style="width:72px;color:#9aa5b1">原调</span>
-      <select id="mKey" style="flex:1"></select>
+
+    <div id="mAutoBox" style="display:none">
+      <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="width:72px;color:#9aa5b1">文件夹</span>
+        <button onclick="document.getElementById('mDir').click()">选择文件夹</button>
+        <span class="hint" id="mDirState">整棵目录，每页都会 OCR</span>
+        <input type="file" id="mDir" webkitdirectory directory multiple style="display:none" onchange="pickDir(this)">
+      </div>
+      <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="width:72px;color:#9aa5b1">图片</span>
+        <input type="file" id="mFiles2" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.avif" style="flex:1">
+      </div>
+      <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="width:72px;color:#9aa5b1">或路径</span>
+        <input id="mPath" placeholder="本机目录/单图（只登记，不复制）" style="flex:1">
+      </div>
+      <div class="hint" style="margin-bottom:10px">收完自动 OCR → AI 认歌名 → 按标题分份。</div>
     </div>
-    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <span style="width:72px;color:#9aa5b1">目标调</span>
-      <select id="mTarget" style="flex:1"></select>
-    </div>
-    <div class="row" id="mGroupRow" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <span style="width:72px;color:#9aa5b1">归入</span>
-      <select id="mGroup" style="flex:1"><option value="">新建一份</option></select>
-    </div>
-    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-      <span style="width:72px;color:#9aa5b1">谱面图片</span>
-      <input type="file" id="mFiles" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.avif" style="flex:1">
-    </div>
+
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button onclick="impClose()">取消</button>
       <button class="p" id="mGo" onclick="impSubmit()">开始</button>

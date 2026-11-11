@@ -1482,7 +1482,7 @@ def ingest_files(files, title: str = "", key: str = "", target: str = "",
             log("人工导入失败 %s：%s" % (base, str(e)[:80]))
             bad += 1
             continue
-        ids.append(i)
+        ids.append((i, base))
         added += 1 if created else 0
         dup += 0 if created else 1
         fields = dict(status="new", no_ai=True, manual=True)
@@ -1495,7 +1495,13 @@ def ingest_files(files, title: str = "", key: str = "", target: str = "",
         if gid:
             fields.update(group=gid, group_title=title or "")
         update(i, **fields)
+    # 人工导入是"一份谱多页"：按文件名排序定页码（第 1、2、3 页）
+    ids.sort(key=lambda t: t[1])
+    ids = [t[0] for t in ids]
     if gid:
+        for pos, i in enumerate(ids, 1):
+            update(i, group=gid, group_title=title or "", group_pos=pos,
+                   group_n=len(ids))
         gs = groups()
         n = sum(1 for it in load().values() if it.get("group") == gid and not it.get("deleted"))
         for k, g in gs.items():
