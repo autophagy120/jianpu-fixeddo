@@ -533,7 +533,7 @@ window.addEventListener('mouseup',function(e){
     if(kcMode){showKcPicker(d.px,d.py);draw();return;}
     var n=hitNote(d.px,d.py);
     if(n){ showSel(n, d.ctrl); }
-    else if(!d.ctrl){ clearSel(); showIns(d.px,d.py); }
+    else if(!d.ctrl){ clearSel(); hideIns(); }   // 单击空白只取消选中
     draw(); return;
   }
   clearTimeout(clickTimer);
