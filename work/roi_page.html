@@ -62,7 +62,9 @@ button[disabled]{opacity:.5;cursor:progress}
       <button id="kcBtn" onclick="toggleKc()">标记转调</button>
       <span class="t">目标调</span><select id="tgt" onchange="setTarget(this.value)"></select>
       <button onclick="undo()">↶ 回退</button>
-      <button onclick="reload()">重新渲染</button><span id="kbdTip">按住 Ctrl 看原图</span>
+      <button onclick="reload()">重新渲染</button>
+      <span class="t" id="buildTag" title="页面构建时间；对不上就是浏览器缓存">build __BUILD__</span>
+      <span id="kbdTip">按住 Ctrl 看原图</span>
     </div>
     <div id="wrap"><canvas id="cv"></canvas></div>
   </div>
@@ -113,7 +115,10 @@ button[disabled]{opacity:.5;cursor:progress}
         </div>
       </div>
       <div id="busy"><div class="b"><div id="spin"></div><span id="busyTx">处理中…</span></div></div>
-      <div id="log"></div>
+      <div class="card" style="padding:8px 10px">
+        <h2 style="display:flex;justify-content:space-between">日志 <span id="logTag" style="color:#5a6673;font-weight:400">v__BUILD__</span></h2>
+        <div id="log" style="min-height:86px;max-height:170px;overflow:auto;background:#0d1116;border:1px solid #232b34;border-radius:6px;padding:6px 8px">（操作记录会出现在这里）</div>
+      </div>
     </div>
   </div>
 </div>
@@ -650,5 +655,6 @@ window.addEventListener('keydown',function(e){
 });
 window.addEventListener('keyup',function(e){ if(e.key==='Control'&&showOrig){showOrig=false;draw();} });
 window.addEventListener('blur',function(){ if(showOrig){showOrig=false;draw();} });
+log('页面已加载 build __BUILD__');
 reload();
 </script></body></html>
