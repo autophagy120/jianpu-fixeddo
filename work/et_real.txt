@@ -1,0 +1,4 @@
+三月雨: 12.1s letters=20 非零=20 box_notes=11
+   saved D:\简谱转调项目\out\easytr_raw\三月雨_easytr.jpg
+为了你唱下去: 52.6s letters=7 非零=7 box_notes=2
+   saved D:\简谱转调项目\out\easytr_raw\为了你唱下去_easytr.jpg

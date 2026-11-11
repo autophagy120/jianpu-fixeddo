@@ -1,0 +1,11 @@
+======================================================================
+MODULE replaceimgTone   file=D:\简谱转调项目\work\extracted\JianPu-Easy-Trans\replaceimgTone.cp36-win32.pyd
+  __doc__ = "\n% def replaceImgTone根据识别到图像中的所有数据进行替换\n% input:\n% letters 所有数字 的矩阵 [ 1 2 3 4 5]';\n% notes 数字对应的  升降号  高低音号 1[has_sharp,up_dot,down_dot]\n% box_locs 数字对应的位置  1[left,right,top,bottom]\n% box_notes 升、降、高音、低音  的位置[left,right,top,bottom]\n\n%“删除”原im_input_rgb图中的 升、降、高音、低音 号\n\n"
+  members: ['Image', 'ImageDraw', 'ImageFont', 'np', 'replaceImfo', 'replaceImgTone', 'resource_path']
+OTHER Image : module = <module 'PIL.Image' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\PIL\\Image.py'>
+OTHER ImageDraw : module = <module 'PIL.ImageDraw' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\PIL\\ImageDraw.py'>
+OTHER ImageFont : module = <module 'PIL.ImageFont' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\PIL\\ImageFont.py'>
+OTHER np : module = <module 'numpy' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\numpy\\__init__.py'>
+OTHER replaceImfo : cython_function_or_method = <cyfunction replaceImfo at 0x1EF16098>
+OTHER replaceImgTone : cython_function_or_method = <cyfunction replaceImgTone at 0x1EF16030>
+OTHER resource_path : cython_function_or_method = <cyfunction resource_path at 0x1CDF5AC0>

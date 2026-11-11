@@ -1,0 +1,3 @@
+recog 19.5s letters=289 notes=289 box_notes=106
+translate 0.0s -> [(289,), (289, 3)]
+render 0.1s -> (1003, 742, 3)  saved

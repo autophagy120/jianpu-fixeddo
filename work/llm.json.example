@@ -1,0 +1,6 @@
+{
+  "_说明": "把本文件复制成 work\\llm.json 再填自己的 key。只支持 OpenAI 兼容的 /chat/completions。程序只会把【OCR 后的文字】发出去，图片一个字节都不发。",
+  "base": "https://api.openai.com/v1",
+  "model": "gpt-4o-mini",
+  "key": "sk-在这里填你的key"
+}

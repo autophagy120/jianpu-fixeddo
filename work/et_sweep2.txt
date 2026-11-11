@@ -1,0 +1,4 @@
+gray f/255 + tpl         letters= 20 notes_nz= 11 box_locs= 20 box_notes= 11
+gray f/255 + tpl/11      letters=  0 notes_nz=  0 box_locs=  0 box_notes=  0
+rgb f/255 + tpl          FAIL RuntimeError: structure and input must have equal rank
+gray f/255 + tpl-0.5     letters=289 notes_nz=106 box_locs=289 box_notes=106

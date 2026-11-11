@@ -1,0 +1,29 @@
+======================================================================
+MODULE reco_note   file=D:\简谱转调项目\work\extracted\JianPu-Easy-Trans\reco_note.cp36-win32.pyd
+  __doc__ = '\n%RECO_ 用于识别升降号  #,b, and .\n% im_gray 灰度图\n% imbw 二值 图\n% position_region 识别到数字的区域 [x,y,width,hight]\n%imshow(im_gray(position_region(2):position_region(2)+position_region(4),position_region(1):position_region(1)+position_region(3)))\n% box_notes  notes的位置[left,right,top,bottom];   没有则用[0 0 0 0]表...
+  members: ['has_sharp_b', 'imresize', 'isDot', 'ndimage', 'np', 'read_letter', 'reco_note']
+OTHER has_sharp_b : cython_function_or_method = <cyfunction has_sharp_b at 0x1CDF5718>
+------------------------------------------------------------
+FUNCTION imresize
+  doc = None
+  co_varnames = ('arr', 'size', 'interp', 'mode', 'a', 'h', 'w', 'img', 'resample')
+  ARGS(4) = ('arr', 'size', 'interp', 'mode')
+  LOCALS = ['a', 'h', 'w', 'img', 'resample']
+  co_names = ('np', 'asarray', 'isinstance', 'int', 'float', 'bool', 'shape', 'dtype', 'uint8', 'clip', 'astype', 'Image', 'fromarray', 'BILINEAR', 'NEAREST', 'array', 'resize')
+  co_consts (10):
+    [00] NoneType     None
+    [01] int          0
+    [02] float        100.0
+    [03] float        0.5
+    [04] int          1
+    [05] int          255
+    [06] str          'bilinear'
+    [07] str          'bicubic'
+    [08] str          'lanczos'
+    [09] tuple        ('bilinear', 'bicubic', 'lanczos')
+  co_code len = 200
+OTHER isDot : cython_function_or_method = <cyfunction isDot at 0x1CDF57E8>
+OTHER ndimage : module = <module 'scipy.ndimage' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\scipy\\ndimage\\__init__.py'>
+OTHER np : module = <module 'numpy' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\numpy\\__init__.py'>
+OTHER read_letter : cython_function_or_method = <cyfunction read_letter at 0x1CDF55E0>
+OTHER reco_note : cython_function_or_method = <cyfunction reco_note at 0x1CDF5780>

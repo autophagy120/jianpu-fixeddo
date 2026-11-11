@@ -1,0 +1,6 @@
+======================================================================
+MODULE noteTranslate   file=D:\简谱转调项目\work\extracted\JianPu-Easy-Trans\noteTranslate.cp36-win32.pyd
+  __doc__ = '\n%TONETRANSLATE 实现调性的转换\n% noteNum,音符数字\n# has_sharp,has_b,up_dot,down_dot  : 升号  降号  高音号  低音号\n% toneOri 原调 如 D#\n% toneOut 需要转成的调 如  C\n% toneOut_img 需要转成的调的图片\n% notes [noteNums,sharps,up_dot,down_dot]\n'
+  members: ['noteTranslate', 'np']
+OTHER noteTranslate : cython_function_or_method = <cyfunction noteTranslate at 0x1CDF5A58>
+OTHER np : module = <module 'numpy' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\numpy\\__init__.py'>

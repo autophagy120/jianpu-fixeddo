@@ -1,0 +1,6 @@
+======================================================================
+MODULE read_letter   file=D:\简谱转调项目\work\extracted\JianPu-Easy-Trans\read_letter.cp36-win32.pyd
+  __doc__ = '\nCreated on Wed Sep 27 12:08:21 2017\n\n@author: luoshengfeng\n'
+  members: ['np', 'read_letter']
+OTHER np : module = <module 'numpy' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\numpy\\__init__.py'>
+OTHER read_letter : cython_function_or_method = <cyfunction read_letter at 0x1CDF55E0>

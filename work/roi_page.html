@@ -1,0 +1,639 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>简谱纠错 — __SONG__</title>
+<style>
+:root{--bg:#0f1216;--panel:#171b21;--card:#1e242c;--line:#2b333d;--fg:#e6e9ee;--dim:#8b95a3;--acc:#4da3ff;--warn:#ffd166}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font:14px/1.55 "Microsoft YaHei","Segoe UI",sans-serif;overflow:hidden}
+#app{display:flex;height:100vh}
+#view{flex:1;display:flex;flex-direction:column;min-width:0}
+#tools{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+#tools .t{color:var(--dim);font-size:12px}
+.sp{flex:1}
+#wrap{flex:1;overflow:auto;background:#0a0c0f;padding:12px}
+#cv{display:block;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.55);border-radius:4px;cursor:crosshair}
+#side{width:352px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column}
+#side header{padding:12px 14px;border-bottom:1px solid var(--line)}
+#side header h1{margin:0;font-size:16px}
+#side header p{margin:4px 0 0;color:var(--dim);font-size:12px}
+#side .body{flex:1;overflow:auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:10px}
+.card h2{margin:0 0 8px;font-size:12px;color:var(--dim);letter-spacing:.4px;font-weight:600}
+.card.hot{border-color:var(--warn);box-shadow:0 0 0 1px rgba(255,209,102,.35) inset}
+.plan{display:flex;align-items:center;gap:9px;background:#232b34;border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:9px 10px;margin-bottom:7px;cursor:pointer;transition:.12s}
+.plan:hover{background:#2b3643;transform:translateX(2px)}
+.plan .ic{width:20px;text-align:center}
+.plan .tx{flex:1;font-size:13px}
+button{background:#26313d;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:13px;cursor:pointer;transition:.12s}
+button:hover{background:#31404f;border-color:var(--acc)}
+button.on{background:#1d4e79;border-color:var(--acc);color:#fff}
+button.oc{min-width:56px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.g{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.t2{color:var(--dim);font-size:12px;margin:2px 0 6px}
+button:active{transform:scale(.94);background:#3a4a5c;border-color:var(--acc)}
+button[disabled]{opacity:.5;cursor:progress}
+#busy{position:fixed;inset:0;background:rgba(10,12,15,.55);display:none;align-items:center;justify-content:center;z-index:999}
+#busy.on{display:flex}
+#busy .b{background:#1e242c;border:1px solid var(--acc);border-radius:10px;padding:16px 26px;font-size:15px;display:flex;align-items:center;gap:12px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+#spin{width:18px;height:18px;border:3px solid #2b3a4a;border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#kbdTip{color:var(--dim);font-size:12px;margin-left:8px}
+.kbd{background:#232b34;border:1px solid var(--line);border-radius:4px;padding:0 5px;font:12px monospace;color:#c7d0da}
+#log{color:var(--dim);font-size:12px;white-space:pre-wrap;max-height:150px;overflow:auto}
+#selInfo{font-size:13px}#selInfo b{color:var(--warn)}
+#stat{font-size:12px;color:var(--dim)}
+#stat b{color:var(--warn)}
+</style></head><body>
+<div id="app">
+  <div id="view">
+    <div id="tools">
+      <button onclick="location.href='/lib'">← 乐谱库</button>
+      <span class="t">__SONG__</span>
+      <button onclick="zoom(-1)">－</button><span class="t" id="zl">—</span><button onclick="zoom(1)">＋</button>
+      <button onclick="fitWidth()">适应宽度</button>
+      <span class="sp"></span>
+      <span id="stat"></span>
+      <button onclick="jumpNext()">跳到下一个橙框</button>
+      <span class="t">识别强度</span>
+      <select id="stg" onchange="setStrength(this.value)" title="严格=只信 OCR 文本（橙框多）；标准；加强=再用几何分类器补字（覆盖率最高）">
+        <option value="0">严格</option><option value="1">标准</option><option value="2">加强</option>
+      </select>
+      <button onclick="saveLib()" title="把当前识别结果和修改写进库缓存，下次打开秒开">保存到库</button>
+      <button id="kcBtn" onclick="toggleKc()">标记转调</button>
+      <span class="t">目标调</span><select id="tgt" onchange="setTarget(this.value)"></select>
+      <button onclick="undo()">↶ 回退</button>
+      <button onclick="reload()">重新渲染</button><span id="kbdTip">按住 Ctrl 看原图</span>
+    </div>
+    <div id="wrap"><canvas id="cv"></canvas></div>
+  </div>
+  <div id="side">
+    <header><h1>简谱纠错</h1><p>点橙框回填 · 单击改音 · 双击插入 · 拖拽加强</p></header>
+    <div class="body">
+      <div class="card" id="selCard" style="display:none">
+        <h2><span id="selTitle">选中音符</span>　<span id="selInfo"></span></h2>
+        <div class="t2" id="selDigitTip">数字（点一下即改）</div><div class="g" id="selDigits"></div>
+        <div class="t2">八度（点一下即改）</div><div class="g" id="selOcts"></div>
+        <div class="t2">字号</div><div class="g" id="selSizes"></div>
+        <div class="row"><button onclick="delNote()">删除这个音</button>
+          <button class="p" onclick="delSelected()">删除选中(<span id="selCnt">1</span>)</button>
+          <button onclick="clearSel()">取消选中</button></div>
+        <div class="t2">Ctrl + 点击 = 多选（一次删一批） · <b>Alt + 拖动 = 微调音符位置</b></div>
+      </div>
+      <div class="card" id="insCard" style="display:none">
+        <h2>插入音符　<span id="insInfo"></span></h2>
+        <div class="t2">数字</div><div class="g" id="insDigits"></div>
+        <div class="t2">八度（点一下即插入）</div><div class="g" id="insOcts"></div>
+        <div class="row"><button onclick="hideIns()">取消</button></div>
+      </div>
+      <div class="card" id="roiCard" style="display:none">
+        <h2>框选区域　<span id="roiCnt"></span></h2>
+        <div id="plans"></div>
+        <div class="row"><button onclick="clearRoi()">清除框选</button></div>
+      </div>
+      <div class="card" id="kcCard" style="display:none">
+        <h2>转调点　<span id="kcInfo"></span></h2>
+        <div class="t2">从这个位置之后的音起 <b>1=?</b></div>
+        <div class="g" id="kcKeys"></div>
+        <div class="row"><button onclick="hideKc()">取消</button></div>
+      </div>
+      <div class="card" id="kcListCard" style="display:none">
+        <h2>已标记的转调点</h2>
+        <div id="kcList"></div>
+      </div>
+      <div class="card">
+        <h2>怎么用</h2>
+        <div style="font-size:12.5px;color:var(--dim);line-height:2">
+          <div><span class="kbd">点橙框</span> 回填漏识别的音（选数字，再点八度）</div>
+          <div><span class="kbd">标记转调</span> 点谱面上任意一点（可从半行起）→ 选 1=?</div>
+          <div><span class="kbd">单击</span> 选中音符 → 右侧点数字、点八度即改</div>
+          <div><span class="kbd">双击空白</span> 插入音符（数字+八度按钮）</div>
+          <div><span class="kbd">拖拽</span> 框选 → 加强识别 / 加强清除</div>
+          <div><span class="kbd">回退</span> 撤销上一步</div>
+        </div>
+      </div>
+      <div id="busy"><div class="b"><div id="spin"></div><span id="busyTx">处理中…</span></div></div>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+<script>
+var cv=document.getElementById('cv'), ctx=cv.getContext('2d'), wrap=document.getElementById('wrap');
+var OCTS=[[-2,'低2'],[-1,'低1'],[0,'中'],[1,'高1'],[2,'高2']];
+var KCKEYS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+var kcMode=false, kcAt=null, ST={notes:[],key_changes:[],source_key:'',target_key:''};
+var img=new Image(), imgOrig=new Image(), showOrig=false, NOTES=[], scale=1, zoomPct=100;
+var base=document.createElement('canvas'), bctx=base.getContext('2d'), baseReady=false;
+var moveDrag=null;   // Alt+拖动 = 微调音符坐标
+var selId=null, selIds=[], selData=null, selDigit='6', roi=null, plans=[], drag=null, insAt=null, insDigit='6', isDbl=false, clickTimer=null;
+
+function log(s){var e=document.getElementById('log');e.textContent=(new Date().toLocaleTimeString()+'  '+s+'\n'+e.textContent).slice(0,2000);}
+var pending=0;
+function busy(on,txt){
+  var el=document.getElementById('busy');
+  document.getElementById('busyTx').textContent=txt||'处理中…';
+  el.className=on?'on':'';
+}
+function hold(txt){ pending++; busy(true,txt||'处理中…'); }
+function release(){
+  pending=Math.max(0,pending-1);
+  if(!pending){ busy(false); document.querySelectorAll('button').forEach(function(x){x.disabled=false;}); }
+}
+function api(p,b){
+  hold('处理中…');
+  document.querySelectorAll('button').forEach(function(x){x.disabled=true;});
+  return fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})})
+    .then(function(r){return r.json();})
+    .finally(release);
+}
+/* 一次改动的完整收尾：取新数据 → 等新图真正画到 canvas 上，整段都占着转圈 */
+function applyRender(){
+  hold('重新绘制…');
+  return loadNotes().then(reload).finally(release);
+}
+function boxOf(id){
+  for(var i=0;i<NOTES.length;i++){var n=NOTES[i];
+    if(n.id===id) return [n.x,n.y,n.w,n.h];}
+  return null;
+}
+function patchRegion(x,y,w,h){
+  var pad=90;
+  var X=Math.max(0,Math.floor(x-pad)), Y=Math.max(0,Math.floor(y-pad));
+  var W=Math.ceil(w+pad*2), H=Math.ceil(h+pad*2);
+  var url='/patch?x='+X+'&y='+Y+'&w='+W+'&h='+H+'&t='+Date.now();
+  return new Promise(function(res,rej){
+    var im=new Image();
+    im.onload=function(){
+      if(!baseReady){base.width=img.naturalWidth;base.height=img.naturalHeight;
+                     bctx.drawImage(img,0,0);baseReady=true;}
+      bctx.drawImage(im,X,Y);          // 只贴这一块，其它像素不动
+      res();
+    };
+    im.onerror=function(){rej(new Error('patch fail'));};
+    im.src=url;
+  }).then(function(){return loadNotes();}).then(function(){draw();});
+}
+/* 一次改动后：优先局部刷新，失败再整页重载 */
+function afterEdit(boxes){
+  if(!boxes||!boxes.length) return applyRender();
+  var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  boxes.forEach(function(b){
+    x0=Math.min(x0,b[0]); y0=Math.min(y0,b[1]);
+    x1=Math.max(x1,b[0]+b[2]); y1=Math.max(y1,b[1]+b[3]);
+  });
+  hold('局部刷新…');
+  return patchRegion(x0,y0,x1-x0,y1-y0).catch(function(){return applyRender();})
+         .finally(release);
+}
+function imgXY(e){var r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)/scale, y:(e.clientY-r.top)/scale};}
+
+function layout(){
+  if(!img.naturalWidth) return;
+  var cssW=img.naturalWidth*zoomPct/100, cssH=img.naturalHeight*zoomPct/100;
+  cv.width=img.naturalWidth; cv.height=img.naturalHeight;
+  cv.style.width=cssW+'px'; cv.style.height=cssH+'px';
+  scale=cssW/img.naturalWidth;
+  document.getElementById('zl').textContent=zoomPct+'%';
+  draw();
+}
+function draw(){
+  if(!img.naturalWidth) return;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(showOrig && imgOrig.naturalWidth){ ctx.drawImage(imgOrig,0,0,cv.width,cv.height); return; }
+  ctx.drawImage(baseReady?base:img,0,0,cv.width,cv.height);
+  var lw=Math.max(1,2/scale), i, n;
+  for(i=0;i<NOTES.length;i++){
+    n=NOTES[i]; if(n.u) continue;
+    var on=(selId!==null&&n.id===selId)||selIds.indexOf(n.id)>=0;
+    var aux=(n.sc==='aux');
+    ctx.strokeStyle=on?'rgba(24,201,100,.95)':(aux?'rgba(168,96,255,.55)':'rgba(77,163,255,.16)');
+    ctx.lineWidth=on?lw*2:(aux?lw*1.4:lw);
+    ctx.strokeRect(n.x,n.y,n.w,n.h);
+  }
+  for(i=0;i<NOTES.length;i++){
+    n=NOTES[i]; if(!n.u) continue;
+    var on2=(selId!==null&&n.id===selId), g=Math.max(2,n.w*0.35);
+    ctx.strokeStyle=on2?'rgba(24,201,100,.98)':'rgba(255,150,20,.95)';
+    ctx.lineWidth=on2?lw*2.4:lw*1.8;
+    ctx.strokeRect(n.x-g,n.y-g,n.w+2*g,n.h+2*g);
+  }
+  if(roi){ctx.strokeStyle='rgba(255,209,102,.95)';ctx.lineWidth=lw*2;
+    ctx.setLineDash([8/scale,6/scale]);ctx.strokeRect(roi[0],roi[1],roi[2],roi[3]);ctx.setLineDash([]);}
+  if(drag){ctx.strokeStyle='rgba(255,93,93,.95)';ctx.lineWidth=lw*2;
+    ctx.setLineDash([7/scale,5/scale]);ctx.strokeRect(drag.x,drag.y,drag.w,drag.h);ctx.setLineDash([]);}
+  if(moveDrag){
+    ctx.strokeStyle='rgba(255,64,160,.98)';ctx.lineWidth=lw*2;
+    ctx.setLineDash([6/scale,4/scale]);
+    ctx.strokeRect(moveDrag.b[0]+moveDrag.dx,moveDrag.b[1]+moveDrag.dy,moveDrag.b[2],moveDrag.b[3]);
+    ctx.setLineDash([]);
+  }
+}
+function stat(){
+  var nu=0,i; for(i=0;i<NOTES.length;i++) if(NOTES[i].u) nu++;
+  var el=document.getElementById('stat');
+  var t=(ST.source_key===ST.target_key)?('1='+ST.source_key):('1='+ST.source_key+' → 1='+ST.target_key);
+  el.innerHTML='<b>'+t+'</b> 　已识别 <b>'+(NOTES.length-nu)+'</b> 　橙框 <b>'+nu+'</b> 　转调点 <b>'+((ST.key_changes||[]).length)+'</b>';
+}
+function reload(){
+  return new Promise(function(res){
+    img.onload=function(){
+      base.width=img.naturalWidth; base.height=img.naturalHeight;
+      bctx.drawImage(img,0,0); baseReady=true;
+      layout();loadNotes().then(res);
+    };
+    img.onerror=function(){log('图片加载失败');res();};
+    img.src='/img?t='+Date.now();
+    if(!imgOrig.naturalWidth) imgOrig.src='/orig?t='+Date.now();
+  });
+}
+function loadNotes(){return fetch('/state').then(function(r){return r.json();}).then(function(j){
+  ST=j; NOTES=j.notes||[];
+  var sel=document.getElementById('stg');
+  if(sel&&typeof j.strength==='number') sel.value=String(j.strength); syncTgt(); renderKcList(); stat(); draw();
+});}
+function bump(){ return applyRender(); }
+
+function syncTgt(){
+  var s=document.getElementById('tgt');
+  if(!s.options.length){
+    var h='<option value="">同原调（不转）</option>', i;
+    for(i=0;i<KCKEYS.length;i++) h+='<option value="'+KCKEYS[i]+'">1='+KCKEYS[i]+'</option>';
+    s.innerHTML=h;
+  }
+  s.value=(ST.target_key&&ST.target_key!==ST.source_key)?ST.target_key:'';
+}
+function setTarget(v){
+  var k=v||ST.source_key;
+  api('/target',{key:k}).then(function(r){ if(r.ok){log('目标调 → 1='+k); return bump();} });
+}
+function toggleKc(){
+  kcMode=!kcMode;
+  document.getElementById('kcBtn').className=kcMode?'on':'';
+  cv.style.cursor=kcMode?'copy':'crosshair';
+  if(kcMode){log('在谱面上点一下放转调点（可以点在一行的半路）');hideKc();}
+  else{hideKc();}
+}
+function showKcPicker(x,y){
+  kcAt={x:x,y:y};
+  document.getElementById('kcCard').style.display='block';
+  document.getElementById('kcInfo').textContent='位置 '+Math.round(x)+','+Math.round(y);
+  var d=document.getElementById('kcKeys'); d.innerHTML='';
+  KCKEYS.forEach(function(k){
+    var b=document.createElement('button'); b.className='oc'; b.textContent='1='+k;
+    b.onclick=function(){doKeyChange(k);};
+    d.appendChild(b);
+  });
+}
+function hideKc(){document.getElementById('kcCard').style.display='none';kcAt=null;}
+function doKeyChange(k){
+  if(!kcAt) return;
+  var at=kcAt; hideKc();
+  kcMode=false; document.getElementById('kcBtn').className=''; cv.style.cursor='crosshair';
+  api('/keychange',{x:at.x,y:at.y,key:k}).then(function(r){
+    if(r.ok){log('转调点 → 1='+k); return bump();}
+  });
+}
+function renderKcList(){
+  var ks=ST.key_changes||[], i, h='';
+  document.getElementById('kcListCard').style.display=ks.length?'block':'none';
+  for(i=0;i<ks.length;i++){
+    h+='<div class="plan" style="cursor:default"><span class="ic">♯</span><span class="tx">从 '+Math.round(ks[i].y)+' 行高 / x='+Math.round(ks[i].x)+' 起 <b>1='+ks[i].key+'</b></span><button onclick="delKc('+i+')">删除</button></div>';
+  }
+  document.getElementById('kcList').innerHTML=h;
+}
+function delKc(i){
+  api('/keychange_del',{i:i}).then(function(r){ if(r.ok){log('已删除转调点'); return bump();} });
+}
+
+function buildDigits(id,cur,cb){
+  var d=document.getElementById(id); d.innerHTML='';
+  '01234567'.split('').forEach(function(ch){
+    var b=document.createElement('button'); b.textContent=ch;
+    if(ch===cur) b.className='on';
+    b.onclick=function(){cb(ch);};
+    d.appendChild(b);
+  });
+}
+function buildOcts(id,cur,cb){
+  var o=document.getElementById(id); o.innerHTML='';
+  OCTS.forEach(function(p){
+    var b=document.createElement('button'); b.className='oc'+(p[0]===cur?' on':'');
+    b.textContent=p[1]; b.onclick=function(){cb(p[0]);};
+    o.appendChild(b);
+  });
+}
+
+function hitNote(x,y){
+  var i,best=null,bd=1e18;
+  for(i=0;i<NOTES.length;i++){           /* 橙框优先：点在框内直接命中 */
+    var u=NOTES[i]; if(!u.u) continue;
+    var g=Math.max(3,u.w*0.5);
+    if(x>=u.x-g&&x<=u.x+u.w+g&&y>=u.y-g&&y<=u.y+u.h+g) return u;
+  }
+  for(i=0;i<NOTES.length;i++){
+    var n=NOTES[i], cx=n.x+n.w/2, cy=n.y+n.h/2;
+    var d=Math.hypot(cx-x,cy-y);
+    var inside=(x>=n.x-n.w*0.8&&x<=n.x+n.w*1.8&&y>=n.y-n.h*1.2&&y<=n.y+n.h*2.2);
+    if(inside) d*=0.2;
+    if(d<bd){bd=d;best=n;}
+  }
+  if(!best) return null;
+  return (bd<=Math.max(40,best.h*1.4))?best:null;
+}
+function showSel(n, keepMulti){
+  if(!keepMulti) selIds=[n.id];
+  else if(selIds.indexOf(n.id)<0) selIds.push(n.id);
+  selId=n.id; selData=n; selDigit=n.digit;
+  var card=document.getElementById('selCard');
+  card.style.display='block';
+  if(n.u){
+    card.className='card hot';
+    document.getElementById('selTitle').textContent='未识别音（橙框）';
+    document.getElementById('selInfo').innerHTML='#'+n.id+' 位置 '+Math.round(n.x)+','+Math.round(n.y);
+    document.getElementById('selDigitTip').textContent='选数字 → 立即回填（再点八度调整）';
+    buildDigits('selDigits','',function(ch){assignSlot(ch,0);});
+    buildOcts('selOcts',0,function(v){assignSlot(selDigit,v);});
+  }else{
+    card.className='card';
+    document.getElementById('selTitle').textContent='选中音符';
+    document.getElementById('selInfo').innerHTML='#'+n.id+' 行'+n.row+' <b>'+n.digit+'</b> 点'+n.oct+
+      (n.sc==='aux'?' · 辅助':' · 主字号')+(selIds.length>1?('　<b>已选 '+selIds.length+' 个</b>'):'');
+    document.getElementById('selDigitTip').textContent='数字（点一下即改）';
+    buildDigits('selDigits',n.digit,function(ch){applyEdit(ch,n.oct);});
+    buildOcts('selOcts',n.oct,function(v){applyEdit(n.digit,v);});
+    buildSizes(n);
+  }
+  draw();
+}
+function clearSel(){selId=null;selIds=[];document.getElementById('selCard').style.display='none';draw();}
+function delSelected(){
+  var ids=selIds.slice();
+  if(!ids.length && selId!==null && selId>=0) ids=[selId];
+  ids=ids.filter(function(x){return x>=0;});
+  if(!ids.length){log('没有选中音符');return;}
+  api('/del_many',{ids:ids}).then(function(r){
+    if(r.ok){log('已删除 '+r.n+' 个音符');var bs=ids.map(boxOf).filter(Boolean);
+             selId=null;selIds=[];clearSel();return afterEdit(bs);}
+    log('删除失败');
+  });
+}
+function delNote(){
+  if(selId===null||selId<0){log('橙框不是音符，不能删');return;}
+  var id=selId;
+  api('/del',{id:id}).then(function(r){
+    if(r.ok){log('已删除 #'+id);var b=boxOf(id);selId=null;selIds=[];clearSel();return afterEdit(b?[b]:null);}
+    log('删除失败');
+  });
+}
+function buildSizes(n){
+  var d=document.getElementById('selSizes'); d.innerHTML='';
+  function mk(label,on,fn){
+    var b=document.createElement('button'); b.textContent=label;
+    if(on) b.className='on';
+    b.onclick=fn; d.appendChild(b);
+  }
+  mk('主字号', n.sc!=='aux', function(){setSize([n.id],'main');});
+  mk('辅助字号', n.sc==='aux', function(){setSize([n.id],'aux');});
+  mk('本行全主字号', false, function(){setSizeRow(n.row,'main');});
+  mk('本行全辅助', false, function(){setSizeRow(n.row,'aux');});
+}
+function resel(){
+  var id=selId;
+  hold('重新绘制…');
+  return applyRender().then(function(){
+    var i,n=null;
+    for(i=0;i<NOTES.length;i++) if(NOTES[i].id===id){n=NOTES[i];break;}
+    if(n) showSel(n); else clearSel();
+  }).finally(release);
+}
+function setSize(ids,cls){
+  var boxes=ids.map(boxOf).filter(Boolean);
+  api('/size',{ids:ids,cls:cls}).then(function(r){
+    if(r.ok){log('字号 → '+(cls==='aux'?'辅助':'主')+'（'+r.n+' 个）');
+             return afterEdit(boxes).then(reselSel);}
+  });
+}
+function reselSel(){
+  var id=selId,i,n=null;
+  for(i=0;i<NOTES.length;i++) if(NOTES[i].id===id){n=NOTES[i];break;}
+  if(n) showSel(n);
+}
+function setSizeRow(row,cls){
+  var boxes=NOTES.filter(function(n){return !n.u && n.row===row;}).map(function(n){return [n.x,n.y,n.w,n.h];});
+  api('/size_row',{row:row,cls:cls}).then(function(r){
+    if(r.ok){log('整行字号 → '+(cls==='aux'?'辅助':'主')+'（'+r.n+' 个）');
+             return afterEdit(boxes).then(reselSel);}
+  });
+}
+function applyEdit(d,o){
+  if(selId===null||selId<0) return;
+  var id=selId, b=boxOf(id);
+  api('/edit',{id:id,digit:d,oct:o}).then(function(r){
+    if(r.ok){log('#'+id+' → '+d+' 点'+o); return afterEdit(b?[b]:null);}
+  });
+}
+function assignSlot(d,o){
+  if(selId===null||selId>=0) return;
+  var slot=-selId-1, b=boxOf(selId), boxes=b?[b]:null;
+  if(b){boxes.push([b[0]-120,b[1]-40,b[2]+240,b[3]+80]);}   // 邻近音被挪动时也覆盖到
+  selDigit=d;
+  api('/assign',{slot:slot,digit:d,oct:o}).then(function(r){
+    if(!r.ok){log('回填失败（槽位已变，刷新一下）');return;}
+    log((r.moved?'已把旁边歪掉的音挪到这里':'橙框回填')+' → '+d+' 点'+o+'（#'+r.id+'）');
+    selId=r.id;
+    return afterEdit(boxes).then(function(){
+      var n=null,i;
+      for(i=0;i<NOTES.length;i++) if(NOTES[i].id===selId){n=NOTES[i];break;}
+      if(n) showSel(n); else clearSel();
+    });
+  });
+}
+function jumpNext(){
+  var i,first=null,after=null;
+  for(i=0;i<NOTES.length;i++){
+    if(!NOTES[i].u) continue;
+    if(first===null) first=NOTES[i];
+    if(selId!==null&&NOTES[i].id>selId){after=NOTES[i];break;}
+  }
+  var t=after||first;
+  if(!t){log('没有橙框了 🎉');return;}
+  var cssX=t.x*scale, cssY=t.y*scale;
+  wrap.scrollTop=Math.max(0,cssY-wrap.clientHeight*0.38);
+  wrap.scrollLeft=Math.max(0,cssX-wrap.clientWidth*0.45);
+  showSel(t);
+}
+
+function showIns(x,y){
+  insAt={x:x,y:y}; insDigit='6';
+  document.getElementById('insCard').style.display='block';
+  document.getElementById('insInfo').textContent='位置 '+Math.round(x)+','+Math.round(y);
+  buildDigits('insDigits','6',function(ch){insDigit=ch;
+    var bs=document.getElementById('insDigits').children;
+    for(var i=0;i<bs.length;i++) bs[i].className=(bs[i].textContent===ch?'on':'');
+  });
+  buildOcts('insOcts',0,function(v){doInsert(v);});
+}
+function hideIns(){document.getElementById('insCard').style.display='none';insAt=null;}
+function doInsert(oct){
+  if(!insAt) return;
+  api('/insert',{x:insAt.x,y:insAt.y,digit:insDigit,oct:oct}).then(function(r){
+    hideIns();
+    if(r.ok){log('插入 '+insDigit+' 点'+oct); return applyRender();}
+  });
+}
+
+cv.addEventListener('mousedown',function(e){
+  var p=imgXY(e);
+  if(e.altKey){
+    var n=hitNote(p.x,p.y);
+    if(n&&!n.u){ moveDrag={id:n.id,x0:p.x,y0:p.y,b:[n.x,n.y,n.w,n.h],dx:0,dy:0}; return; }
+  }
+  drag={px:p.x,py:p.y,x:p.x,y:p.y,w:0,h:0,moved:false,ctrl:(e.ctrlKey||e.metaKey)};
+});
+window.addEventListener('mousemove',function(e){
+  if(moveDrag){
+    var pm=imgXY(e);
+    moveDrag.dx=pm.x-moveDrag.x0; moveDrag.dy=pm.y-moveDrag.y0;
+    draw(); return;
+  }
+  if(!drag) return; var p=imgXY(e);
+  drag.x=Math.min(drag.px,p.x);drag.y=Math.min(drag.py,p.y);
+  drag.w=Math.abs(p.x-drag.px);drag.h=Math.abs(p.y-drag.py);
+  if(drag.w*scale>6||drag.h*scale>6) drag.moved=true;
+  draw();
+});
+window.addEventListener('mouseup',function(e){
+  if(moveDrag){
+    var md=moveDrag; moveDrag=null;
+    if(Math.abs(md.dx)<2&&Math.abs(md.dy)<2){draw();return;}
+    hold('移动音符…');
+    api('/move_note',{id:md.id,dx:Math.round(md.dx),dy:Math.round(md.dy)}).then(function(r){
+      if(r.ok){
+        log('已移动 ('+Math.round(md.dx)+','+Math.round(md.dy)+')');
+        var nx=md.b[0]+md.dx, ny=md.b[1]+md.dy;
+        return afterEdit([md.b]).then(function(){
+          // 移动后 id 会重排，按新坐标把这一音重新选中
+          var best=null,bd=1e18,i,nn;
+          for(i=0;i<NOTES.length;i++){nn=NOTES[i]; if(nn.u) continue;
+            var d2=Math.abs(nn.x-nx)+Math.abs(nn.y-ny);
+            if(d2<bd){bd=d2;best=nn;}}
+          if(best&&bd<40) showSel(best);
+        });
+      }
+      log('移动失败');
+    }).finally(release);
+    return;
+  }
+  if(!drag) return; var d=drag; drag=null;
+  if(!d.moved){
+    if(isDbl){isDbl=false;draw();return;}
+    if(kcMode){showKcPicker(d.px,d.py);draw();return;}
+    clearTimeout(clickTimer);
+    clickTimer=setTimeout(function(){
+      var n=hitNote(d.px,d.py);
+      if(n){showSel(n, d.ctrl);}else if(!d.ctrl){clearSel();}
+    },170);
+    draw(); return;
+  }
+  clearTimeout(clickTimer);
+  roi=[d.x,d.y,d.w,d.h]; selId=null; document.getElementById('selCard').style.display='none';
+  api('/roi',{x:d.x,y:d.y,w:d.w,h:d.h}).then(function(r){
+    plans=r.plans; renderPlans(r.plans,r.count); draw();
+  });
+});
+cv.addEventListener('dblclick',function(e){
+  isDbl=true; clearTimeout(clickTimer);
+  if(kcMode){return;}
+  var p=imgXY(e);
+  var n=hitNote(p.x,p.y);
+  if(n){showSel(n);return;}
+  showIns(p.x,p.y);
+});
+
+function renderPlans(list,count){
+  document.getElementById('roiCard').style.display='block';
+  document.getElementById('roiCnt').textContent=count?('框内 '+count+' 个已识别'):'框内无已识别音符';
+  var ic=['✎','🔍','🧽','➕','✕'];
+  var h='';
+  for(var i=0;i<list.length;i++){
+    h+='<div class="plan" onclick="doPlan('+i+')"><span class="ic">'+(ic[i]||'•')+'</span><span class="tx">'+list[i]+'</span></div>';
+  }
+  document.getElementById('plans').innerHTML=h;
+}
+function doPlan(i){
+  if(!roi) return;
+  var t=plans[i]||'';
+  if(t.indexOf('已识别音符')>=0){log('框内有音符：请单击选中再改');return;}
+  if(t.indexOf('删除框内所有音符')>=0){
+    if(!confirm('删除框内所有已识别音符？')) return;
+    api('/roi_clear_notes',{roi:roi}).then(function(r){
+      if(r.ok){log('已删除框内 '+r.n+' 个音符');return applyRender();}
+    });
+    return;
+  }
+  if(t.indexOf('加强识别')>=0){
+    api('/strengthen',{mode:'ocr',roi:roi}).then(function(r){
+      if(r.ok){
+        log('加强识别：读到 '+(r.found||0)+' 个字符，新增 '+(r.added||0)+' 个音'
+            +((r.skipped||0)?('，已有 '+r.skipped+' 个'):'')+'（原有音符不动）');
+        return applyRender();
+      }});
+  }else if(t.indexOf('加强清除')>=0){
+    api('/strengthen',{mode:'erase',roi:roi}).then(function(r){
+      if(r.ok){log('加强清除完成');reload();}});
+  }else if(t.indexOf('强制插入')>=0){
+    showIns(roi[0]+roi[2]/2, roi[1]+roi[3]/2);
+  }else{clearRoi();}
+}
+function clearRoi(){roi=null;plans=[];document.getElementById('roiCard').style.display='none';draw();}
+function undo(){
+  api('/undo',{}).then(function(r){
+    if(r.ok){log('已回退');return applyRender();} log('没有可回退的步骤');
+  });
+}
+function setStrength(level){
+  var lb={0:'严格',1:'标准',2:'加强'}[level]||level;
+  busy(true,'按「'+lb+'」重新识别…');
+  document.querySelectorAll('button').forEach(function(x){x.disabled=true;});
+  fetch('/strength',{method:'POST',headers:{'Content-Type':'application/json'},
+                     body:JSON.stringify({level:parseInt(level,10)})})
+    .then(function(r){return r.json();}).then(function(r){
+      if(r.ok){log('识别强度 → '+lb+'：音符 '+r.pairs+'，橙框 '+r.uncovered);return applyRender();}
+      log('切换强度失败');
+    }).finally(function(){
+      busy(false);
+      document.querySelectorAll('button').forEach(function(x){x.disabled=false;});
+    });
+}
+function saveLib(){
+  api('/save',{}).then(function(r){
+    if(r.ok){log('已保存到库缓存（下次打开秒开）');toast('已保存');}
+    else log('保存失败：这一页不是从乐谱库打开的');
+  });
+}
+function toast(s){
+  var t=document.getElementById('toastx');
+  if(!t){
+    t=document.createElement('div'); t.id='toastx';
+    t.style.cssText='position:fixed;right:20px;top:70px;background:#1b222b;color:#e6e9ee;'+
+      'border:1px solid #2b333d;border-radius:9px;padding:9px 14px;font-size:13px;z-index:9999';
+    document.body.appendChild(t);
+  }
+  t.textContent=s; t.style.display='block';
+  clearTimeout(t._h); t._h=setTimeout(function(){t.style.display='none';},2200);
+}
+function zoom(d){zoomPct=Math.max(20,Math.min(400,zoomPct+(d>0?20:-20)));layout();}
+function fitWidth(){if(!img.naturalWidth)return;zoomPct=Math.max(10,Math.round(wrap.clientWidth*0.97/img.naturalWidth*100));layout();}
+window.addEventListener('resize',function(){if(img.naturalWidth)layout();});
+window.addEventListener('keydown',function(e){
+  if(e.key==='Control'&&!showOrig){showOrig=true;draw();}
+  if((e.key==='Delete'||e.key==='Backspace')&&!insAt&&!kcMode){
+    if(selIds.some(function(x){return x>=0;})){e.preventDefault();delSelected();}
+    else if(selId!==null&&selId>=0){e.preventDefault();delNote();}
+  }
+  if(e.key==='Escape'){clearSel();}
+  if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){e.preventDefault();undo();}
+});
+window.addEventListener('keyup',function(e){ if(e.key==='Control'&&showOrig){showOrig=false;draw();} });
+window.addEventListener('blur',function(){ if(showOrig){showOrig=false;draw();} });
+reload();
+</script></body></html>

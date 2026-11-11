@@ -1,0 +1,33 @@
+C    OK
+C#   OK
+D    OK
+D#   OK
+E    OK
+F    OK
+F#   OK
+G    OK
+G#   OK
+A    OK
+A#   OK
+B    OK
+bA   X  'bA' is not in list
+bB   X  'bB' is not in list
+bC   X  'bC' is not in list
+bD   X  'bD' is not in list
+bE   X  'bE' is not in list
+bF   X  'bF' is not in list
+bG   X  'bG' is not in list
+Ab   X  'Ab' is not in list
+Bb   X  'Bb' is not in list
+Db   X  'Db' is not in list
+Eb   X  'Eb' is not in list
+Gb   X  'Gb' is not in list
+Cb   X  'Cb' is not in list
+Fb   X  'Fb' is not in list
+#C   X  '#C' is not in list
+#D   X  '#D' is not in list
+#F   X  '#F' is not in list
+#G   X  '#G' is not in list
+#A   X  '#A' is not in list
+#B   X  '#B' is not in list
+#E   X  '#E' is not in list

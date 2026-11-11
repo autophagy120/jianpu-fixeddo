@@ -1,0 +1,30 @@
+======================================================================
+MODULE getLeter   file=D:\简谱转调项目\work\extracted\JianPu-Easy-Trans\getLeter.cp36-win32.pyd
+  __doc__ = '\n'
+  members: ['getLetterLoc', 'imresize', 'ndimage', 'np', 'read_letter', 'reco_note', 'removeMistaken', 'remove_noise_getSection']
+OTHER getLetterLoc : cython_function_or_method = <cyfunction getLetterLoc at 0x1CDF5850>
+------------------------------------------------------------
+FUNCTION imresize
+  doc = None
+  co_varnames = ('arr', 'size', 'interp', 'mode', 'a', 'h', 'w', 'img', 'resample')
+  ARGS(4) = ('arr', 'size', 'interp', 'mode')
+  LOCALS = ['a', 'h', 'w', 'img', 'resample']
+  co_names = ('np', 'asarray', 'isinstance', 'int', 'float', 'bool', 'shape', 'dtype', 'uint8', 'clip', 'astype', 'Image', 'fromarray', 'BILINEAR', 'NEAREST', 'array', 'resize')
+  co_consts (10):
+    [00] NoneType     None
+    [01] int          0
+    [02] float        100.0
+    [03] float        0.5
+    [04] int          1
+    [05] int          255
+    [06] str          'bilinear'
+    [07] str          'bicubic'
+    [08] str          'lanczos'
+    [09] tuple        ('bilinear', 'bicubic', 'lanczos')
+  co_code len = 200
+OTHER ndimage : module = <module 'scipy.ndimage' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\scipy\\ndimage\\__init__.py'>
+OTHER np : module = <module 'numpy' from 'D:\\简谱转调项目\\work\\py36_32\\lib\\site-packages\\numpy\\__init__.py'>
+OTHER read_letter : cython_function_or_method = <cyfunction read_letter at 0x1CDF55E0>
+OTHER reco_note : cython_function_or_method = <cyfunction reco_note at 0x1CDF5780>
+OTHER removeMistaken : cython_function_or_method = <cyfunction removeMistaken at 0x1CDF5920>
+OTHER remove_noise_getSection : cython_function_or_method = <cyfunction remove_noise_getSection at 0x1CDF5648>

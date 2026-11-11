@@ -1,0 +1,6 @@
+万神纪 image=(3508, 2480)
+   150s letters=269 非零=235 box_notes=114
+   saved D:\简谱转调项目\out\easytr_raw\万神纪_easytr.jpg
+BadApple image=(3508, 2480)
+   151s letters=108 非零=102 box_notes=58
+   saved D:\简谱转调项目\out\easytr_raw\BadApple_easytr.jpg

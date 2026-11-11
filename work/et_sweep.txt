@@ -1,0 +1,13 @@
+templates dtype=float64 shape=(1009, 30) min=-0.074 max=11.000
+u8 asis        tpl      24s  letters= 11 notes_nz=  0 box_locs= 11 box_notes=  0
+u8 asis        tpl32    24s  letters= 11 notes_nz=  0 box_locs= 11 box_notes=  0
+u8 inv         tpl      72s  letters= 48 notes_nz=  1 box_locs= 48 box_notes=  1
+u8 inv         tpl32    63s  letters= 48 notes_nz=  1 box_locs= 48 box_notes=  1
+f64 asis       tpl      17s  letters= 11 notes_nz=  0 box_locs= 11 box_notes=  1
+f64 asis       tpl32    22s  letters= 11 notes_nz=  0 box_locs= 11 box_notes=  1
+f64 inv        tpl     142s  letters=  4 notes_nz=  0 box_locs=  4 box_notes=  0
+f64 inv        tpl32   126s  letters=  4 notes_nz=  0 box_locs=  4 box_notes=  0
+f64 /255       tpl      18s  letters= 20 notes_nz= 11 box_locs= 20 box_notes= 11
+f64 /255       tpl32    18s  letters= 20 notes_nz= 11 box_locs= 20 box_notes= 11
+f64 inv /255   tpl       2s  letters=  0 notes_nz=  0 box_locs=  0 box_notes=  0
+f64 inv /255   tpl32     2s  letters=  0 notes_nz=  0 box_locs=  0 box_notes=  0

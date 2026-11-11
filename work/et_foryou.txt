@@ -1,0 +1,3 @@
+image (2435, 1721)
+recog 46.5s letters=137 notes=137 box_notes=27
+render 0.1s -> (2435, 1721, 3) saved

@@ -1,0 +1,866 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>乐谱库 — 简谱转调</title>
+<style>
+:root{--bg:#0f1216;--panel:#171b21;--card:#1e242c;--line:#2b333d;--fg:#e6e9ee;--dim:#8b95a3;--acc:#4da3ff;--warn:#ffd166;--ok:#2ed07a;--err:#ff6b6b}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font:14px/1.55 "Microsoft YaHei","Segoe UI",sans-serif;overflow:hidden}
+header{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{margin:0;font-size:16px}
+header .st{color:var(--dim);font-size:12px}
+header .st b{color:var(--warn)}
+button{background:#26313d;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:12.5px;cursor:pointer}
+button:hover{background:#31404f;border-color:var(--acc)}
+button.p{background:#1d4e79;border-color:var(--acc)}
+button:disabled{opacity:.42;cursor:progress}
+button.mini{padding:3px 7px;font-size:11.5px}
+input[type=text],select{background:#12171d;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12.5px}
+#app{display:flex;height:calc(100vh - 49px)}
+.pane{overflow:auto;padding:10px 12px}
+#left{flex:1.25;border-right:1px solid var(--line)}
+#right{flex:1;background:#131820}
+.pane h2{font-size:12px;color:var(--dim);letter-spacing:.5px;margin:2px 0 9px;display:flex;align-items:center;gap:8px}
+.pane h2 b{color:var(--warn);font-weight:600}
+.grp{background:var(--card);border:1px solid var(--line);border-radius:9px;margin-bottom:9px;overflow:hidden}
+.grp.over{outline:2px dashed var(--acc);outline-offset:-2px}
+.grp .hd{display:flex;align-items:center;gap:8px;padding:9px 11px;cursor:pointer;user-select:none}
+.grp .hd:hover{background:#232b34}
+.grp .hd .ar{color:var(--dim);width:14px;text-align:center;transition:.15s}
+.grp.open .hd .ar{transform:rotate(90deg)}
+.grp .hd .nm{flex:1;font-weight:600;font-size:13.5px}
+.grp .hd .cnt{color:var(--dim);font-size:12px}
+.grp .bd{display:none;padding:2px 8px 8px}
+.grp.open .bd{display:block}
+.page{display:flex;gap:9px;align-items:center;padding:6px;border-radius:8px;border:1px solid transparent}
+.page:hover{background:#232b34;border-color:var(--line)}
+.page.dragover{border-color:var(--acc)}
+.page .thumb{width:46px;height:62px;object-fit:cover;border-radius:4px;background:#fff;border:1px solid var(--line);flex:none;cursor:zoom-in;-webkit-user-drag:none;user-drag:none}
+.page .meta{flex:1;min-width:0}
+.page .t1{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.page .t2{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.page .ops{display:flex;gap:4px;flex:none}
+.tag{display:inline-block;padding:0 6px;border-radius:20px;font-size:10.5px;border:1px solid var(--line)}
+.tag.new{color:#9fb0c0}.tag.ocr{color:var(--warn);border-color:#4a3f1e}
+.tag.done{color:var(--ok);border-color:#1e4a33}.tag.error{color:var(--err);border-color:#4a1e1e}
+.tag.dup{color:var(--err);border-color:#4a1e1e}
+.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px;margin-bottom:8px;display:flex;gap:9px}
+.card.over{outline:2px dashed var(--acc);outline-offset:-2px}
+.card img{width:74px;height:100px;object-fit:cover;border-radius:5px;background:#fff;border:1px solid var(--line);cursor:zoom-in;flex:none;-webkit-user-drag:none;user-drag:none}
+.card .meta{flex:1;min-width:0}
+.card .t1{font-size:13px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .t2{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .ops{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+#dropRight{min-height:120px}
+#right.over{background:#182432}
+.dragtip{position:fixed;left:50%;transform:translateX(-50%);bottom:56px;background:#1d4e79;color:#fff;border-radius:20px;padding:6px 16px;font-size:12.5px;display:none;z-index:80}
+.dragtip.on{display:block}
+#dropRight.over{outline:2px dashed var(--acc);outline-offset:-6px;border-radius:10px}
+#pv{position:fixed;z-index:99;display:none;border:2px solid var(--acc);border-radius:6px;box-shadow:0 14px 44px rgba(0,0,0,.75);background:#fff;pointer-events:none}
+#bar{position:fixed;left:0;right:0;bottom:0;background:#12171d;border-top:1px solid var(--line);padding:8px 16px;display:none;font-size:13px;z-index:8}
+#bar.on{display:block}
+#prog{height:5px;background:#232b34;border-radius:3px;overflow:hidden;margin-top:5px}
+#prog i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
+#toast{position:fixed;right:16px;top:52px;max-width:560px;background:#1b222b;border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:13px;display:none;z-index:99;white-space:pre-wrap}
+#toast.on{display:block}
+.hint{color:var(--dim);font-size:12px;line-height:1.75}
+#imp{border:1px solid var(--line);border-radius:9px;padding:8px 11px;margin:8px 12px;background:var(--card)}
+#imp summary{cursor:pointer;color:var(--dim);font-size:12.5px}
+#imp .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+
+.mi{padding:7px 10px;border-radius:6px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.mi:hover{background:#26313d}
+#modal{position:fixed;inset:0;background:rgba(8,10,13,.7);display:none;align-items:center;justify-content:center;z-index:100}
+#modal.on{display:flex}
+#modal .box{background:#1b222b;border:1px solid var(--line);border-radius:12px;width:min(760px,92vw);max-height:82vh;display:flex;flex-direction:column}
+#modal .hd{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+#modal .hd b{flex:1;font-size:14px}
+#modal .bd{overflow:auto;padding:10px 14px}
+.tr-row{display:flex;gap:10px;align-items:center;padding:6px;border-bottom:1px solid #202832}
+.tr-row img{width:44px;height:60px;object-fit:cover;border-radius:4px;background:#fff;border:1px solid var(--line);cursor:zoom-in}
+.tr-row .m{flex:1;min-width:0}
+.tr-row .m div{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-row .m .d{color:var(--dim);font-size:11px}
+
+.page.dropbefore,.card.dropbefore{box-shadow:0 -2px 0 0 var(--acc)}
+.page.dropafter,.card.dropafter{box-shadow:0 2px 0 0 var(--acc)}
+.grip{margin-right:2px}
+</style></head><body>
+<header>
+  <h1>乐谱库</h1><span class="st" id="stats">—</span>
+  <span style="flex:1"></span>
+  <button onclick="rescan()" title="重扫导入目录，捡新文件">更新</button>
+  <button onclick="groupAuto()" title="按目录/歌词/时间间隔自动分份">自动分份</button>
+  <button onclick="runAll('ocr')" title="本地 OCR 提取文字，不出图">批量OCR</button>
+  <button class="p" onclick="runAll('render')" title="转调出图">批量出图</button>
+  <button onclick="runClassify()" title="只把 OCR 文字发给 LLM 猜歌名">AI分类</button>
+  <button onclick="runAll('ai')" title="只把 OCR 文字发给 LLM 补信息">AI补信息</button>
+  <button onclick="runDedupe()" title="找已转调的图并在批量时跳过">查重</button>
+  <button onclick="refresh()">刷新</button>
+  <div style="position:relative">
+    <button onclick="toggleSet(event)">设置 ▾</button>
+    <div id="setMenu" style="display:none;position:absolute;right:0;top:34px;background:#1b222b;border:1px solid #2b333d;border-radius:9px;padding:6px;min-width:200px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.6)">
+      <div class="mi" onclick="setOcrMode('serial')">OCR 方式：串行（默认）</div>
+      <div class="mi" onclick="setOcrMode('cpu_gpu')">OCR 方式：CPU+GPU 并行</div>
+      <div class="mi" onclick="setOcrMode('gpu2')">OCR 方式：双 GPU 并行（显存不够会自动退回 CPU）</div>
+      <div class="mi" onclick="setOcrMode('max')">OCR 方式：最大调度（3 GPU + 3 CPU 抢任务）</div>
+      <div class="mi" style="border-top:1px solid #2b333d;margin-top:4px;padding-top:8px" onclick="llmOpen()">AI 配置… <span id="aiDot" style="color:#ffd166"></span></div>
+      <div class="mi" onclick="trashOpen()">垃圾箱 <span id="trashN" style="color:#ffd166"></span></div>
+      <div class="mi" onclick="runDupes()">检测重复（图片指纹，只标记不删）</div>
+      <div class="mi" onclick="runDedupeExact()">去重：完全重复（同图/同 OCR 文本，进垃圾箱）</div>
+      <div class="mi" style="border-top:1px solid #2b333d;margin-top:4px;padding-top:8px" onclick="editsInfo()">修正记录（自学习）…</div>
+      <div class="mi" onclick="runGroupTitles()">用 AI 标题汇总「谱名」</div>
+      <div class="mi" onclick="runGroupByTitle()">按 AI 标题重新分份（推荐）</div>
+      <div class="mi" onclick="clearTitles({all:true})">清空全库 AI 标题（保留分组）</div>
+      <div class="mi" onclick="pvHide();toast('右键任意页面可「删除到垃圾箱」')">使用提示</div>
+    </div>
+  </div>
+</header>
+<div id="imp">
+  <details><summary>导入（文件夹 / 图片 / 路径）</summary>
+    <div class="row">
+      <button class="p" onclick="document.getElementById('dpick').click()">选择文件夹</button>
+      <button onclick="document.getElementById('fpick').click()">选择图片</button>
+      <button class="p" onclick="manualOpen()" title="不跑 OCR / 不调 AI：直接填谱名+调号+选图，进去自己点音符">人工导入（不用 AI）</button>
+      <input type="file" id="dpick" webkitdirectory directory multiple style="display:none" onchange="upload(this)">
+      <input type="file" id="fpick" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.avif,.heic,.heif,image/*" style="display:none" onchange="upload(this)">
+      <span class="hint" id="upstate"></span>
+    </div>
+    <div class="row">
+      <input type="text" id="root" placeholder="或粘贴本机路径（目录/单图，只登记不复制）" style="flex:1;min-width:280px">
+      <button onclick="doImportPath()">按路径登记</button>
+      <button onclick="runArchive()">复制进本地库</button>
+    </div>
+    <div class="hint">支持 jpg/png/gif/bmp/webp/tif/avif（heic 需插件，失败会列出）。原调在下面逐页调。</div>
+  </details>
+</div>
+<div id="app">
+  <div class="pane" id="left">
+    <h2>已分类 <b id="nGroup">0</b> 份　排序：<select id="gsort" onchange="setGroupSort(this.value)" title="左侧「份」的排序方式"><option value="manual">手动（拖动）</option><option value="name">按名称（字母）</option><option value="time">按时间（新的在前）</option></select><span class="hint">右键空白处新建谱 · 拖页面进来归类 · 点标题展开/折叠</span></h2>
+    <div id="groups"></div>
+  </div>
+  <div class="dragtip" id="dragtip">拖到右侧 = 移出到未分类</div>
+<div class="pane" id="right">
+    <h2>未分类 <b id="nFree">0</b> 页　<span class="hint">拖到左侧某一份里即归类</span></h2>
+    <div id="dropRight"></div>
+  </div>
+</div>
+<div id="bar"><span id="bmsg">…</span><div id="prog"><i id="pi"></i></div></div>
+<div id="toast"></div>
+<div id="modal"><div class="box"><div class="hd"><b id="modalTitle">垃圾箱</b><span class="hint" id="modalHint"></span><button class="mini" onclick="trashRestoreAll()">全部恢复</button><button class="mini" onclick="trashPurgeAll()">清空</button><button class="mini" onclick="modalClose()">关闭</button></div><div class="bd" id="modalBody"></div></div></div>
+<img id="pv" alt="">
+<script>
+var ITEMS=[], GROUPS={}, STATS={}, JOB={running:false}, poll=null, DRAG=null, GRPDRAG=null;
+var KEYS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+var LBL={new:'未处理',ocr:'已OCR',done:'已出图',error:'失败'};
+
+function toast(s,ms){var t=document.getElementById('toast');t.textContent=s;t.className='on';
+  clearTimeout(t._h);t._h=setTimeout(function(){t.className='';},ms||4000);}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function api(p,b){return fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify(b||{})}).then(function(r){return r.json();});}
+function nm(it){return it.title||it.song||(it.image||'').split('\\').pop();}
+
+/* ---------- 悬停大图预览 ---------- */
+function pvShow(id){var im=document.getElementById('pv');im.src='/api/preview?id='+id+'&t='+Date.now();
+  im.style.display='block';}
+function pvMove(e){var im=document.getElementById('pv');
+  if(im.style.display!=='block') return;
+  var w=im.naturalWidth||300, h=im.naturalHeight||420;
+  var maxW=Math.min(520, Math.max(220,w*1.6)), maxH=maxW*h/Math.max(1,w);
+  im.style.maxWidth=maxW+'px'; im.style.maxHeight=maxH+'px';
+  var x=e.clientX+20, y=e.clientY-60;
+  if(x+maxW>window.innerWidth-10) x=e.clientX-maxW-20;
+  if(y+maxH>window.innerHeight-10) y=Math.max(8,window.innerHeight-maxH-10);
+  im.style.left=Math.max(4,x)+'px'; im.style.top=Math.max(4,y)+'px';
+}
+function pvHide(){document.getElementById('pv').style.display='none';}
+document.addEventListener('mousemove',pvMove);
+
+/* ---------- 页面渲染 ---------- */
+function sortedItems(list){
+  return list.slice().sort(function(x,y){
+    var ox=x.group_pos||0, oy=y.group_pos||0;
+    if(ox!==oy) return ox-oy;
+    return (x.order||0)-(y.order||0);
+  });
+}
+function pageRow(it, inGroup){
+  var tag='<span class="tag '+it.status+'">'+(LBL[it.status]||it.status)+'</span>';
+  if(it.dup) tag+='<span class="tag dup">已转调</span>';
+  if(it.dup_of) tag+='<span class="tag dup">重复</span>';
+  var ks=(it.keys||[]).length;
+  return '<div class="page" draggable="true" data-id="'+it.id+'" '+
+    'ondragover="rowOver(event,this)" ondragleave="rowLeave(this)" ondrop="rowDrop(event,this)" '+
+    'oncontextmenu="pageMenu(event,\''+it.id+'\','+inGroup+')">'+
+    '<img class="thumb" loading="lazy" src="/api/thumb?id='+it.id+'" '+
+      'onmouseenter="pvShow(\''+it.id+'\')" onmouseleave="pvHide()" onclick="openScore(\''+it.id+'\')">'+
+    '<div class="meta"><div class="t1" title="双击改标题" ondblclick="editTitle(\''+it.id+'\')" '+
+      'style="cursor:text">'+esc(nm(it))+(ks>1?' <span class="hint">多调</span>':'')+
+      ' <span style="color:#8b95a3;cursor:pointer" onclick="editTitle(\''+it.id+'\')">✎</span></div>'+
+      '<div class="t2">'+esc((it.image||'').split('\\').pop())+'</div></div>'+
+    '<div style="flex:none">'+tag+'</div>'+
+    '<div class="ops">'+
+      '<button class="mini" onclick="openScore(\''+it.id+'\')">打开</button>'+
+      '<button class="mini" onclick="runOne(\''+it.id+'\',\'ocr\')">OCR</button>'+
+      '<button class="mini" onclick="runOne(\''+it.id+'\',\'render\''+(it.dup?',true':'')+')">出图</button>'+
+      (inGroup?('<button class="mini" onclick="moveTo([\''+it.id+'\'],\'\')">移出</button>'):'')+
+    '</div></div>';
+}
+function cardHtml(it){
+  var tag='<span class="tag '+it.status+'">'+(LBL[it.status]||it.status)+'</span>';
+  if(it.dup) tag+=' <span class="tag dup">已转调</span>';
+  if(it.dup_of) tag+=' <span class="tag dup">重复</span>';
+  return '<div class="card" draggable="true" data-id="'+it.id+'" '+
+    'ondragover="rowOver(event,this)" ondragleave="rowLeave(this)" ondrop="rowDrop(event,this)" '+
+    'oncontextmenu="pageMenu(event,\''+it.id+'\',0)">'+
+    '<img loading="lazy" src="/api/thumb?id='+it.id+'" onmouseenter="pvShow(\''+it.id+'\')" '+
+      'onmouseleave="pvHide()" onclick="openScore(\''+it.id+'\')">'+
+    '<div class="meta"><div class="t1" title="双击改标题" ondblclick="editTitle(\''+it.id+'\')" '+
+      'style="cursor:text">'+esc(nm(it))+
+      ' <span style="color:#8b95a3;cursor:pointer" onclick="editTitle(\''+it.id+'\')">✎</span></div>'+
+      '<div class="t2">'+esc(it.song||'')+'</div>'+
+      '<div class="t2">'+esc((it.image||'').split('\\').pop())+'</div>'+
+      '<div style="margin-top:3px">'+tag+'</div>'+
+      '<div class="ops"><button class="mini" onclick="openScore(\''+it.id+'\')">打开</button>'+
+      '<button class="mini" onclick="runOne(\''+it.id+'\',\'render\')">出图</button>'+
+      '<button class="mini" onclick="groupPick(\''+it.id+'\')">归类…</button></div></div></div>';
+}
+var OCR_MODE = (function(){ try{return localStorage.getItem('ocrmode')||'max';}catch(e){return 'max';} })();
+function setOcrMode(m){
+  OCR_MODE = m;
+  try{ localStorage.setItem('ocrmode', m); }catch(e){}
+  document.getElementById('setMenu').style.display='none';
+  toast('OCR 方式：'+({serial:'串行',cpu_gpu:'CPU+GPU 并行',gpu2:'双 GPU 并行',max:'最大调度 3GPU+3CPU'}[m]||m));
+}
+var SORT_MODE = (function(){ try{return localStorage.getItem('lbsort')||'manual';}catch(e){return 'manual';} })();
+function setGroupSort(m){
+  SORT_MODE = m;
+  try{ localStorage.setItem('lbsort', m); }catch(e){}
+  if(m!=='manual') toast(m==='name'?'按名称排序':'按时间排序（新的在前），拖动会切回手动');
+  render();
+}
+function groupTime(g){
+  // 优先用组的创建时间；没有就用组内最早的页面时间
+  if(g.created){ var t=Date.parse((g.created||'').replace(/-/g,'/')); if(!isNaN(t)) return t; }
+  var ts=ITEMS.filter(function(x){return x.group===g.id;}).map(function(x){
+    return (x.t0||0)*1000 || Date.parse((x.updated||'').replace(/-/g,'/'))||0; });
+  return ts.length?Math.max.apply(null,ts):0;
+}
+function sortedGroups(){
+  var arr=Object.keys(GROUPS).map(function(g){return GROUPS[g];});
+  if(SORT_MODE==='name'){
+    arr.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'','zh'); });
+  }else if(SORT_MODE==='time'){
+    arr.sort(function(a,b){ return groupTime(b)-groupTime(a); });
+  }else{
+    arr.sort(function(a,b){
+      var oa=(typeof a.order==='number')?a.order:1e9, ob=(typeof b.order==='number')?b.order:1e9;
+      if(oa!==ob) return oa-ob;
+      return (a.name||'').localeCompare(b.name||'','zh');
+    });
+  }
+  return arr;
+}
+function render(){
+  var groups={}, free=[];
+  ITEMS.forEach(function(it){ if(it.group) (groups[it.group]=groups[it.group]||[]).push(it); else free.push(it); });
+  var gh='', _gl=sortedGroups(), names=_gl.map(function(g){return g.id;});
+  _gl.forEach(function(_go){ var gid=_go.id;
+    var g=GROUPS[gid], pages=sortedItems(groups[gid]||[]);
+    var open=(g.collapsed===false);   /* 默认折叠，只有明确点开过才展开 */
+    gh+='<div class="grp'+(open?' open':'')+'" data-gid="'+gid+'" ondragover="grpOver(event,this)" ondragleave="this.classList.remove(\'over\')" ondrop="grpDrop(event,this)">'+
+      '<div class="hd" draggable="true" data-gid="'+gid+'" onclick="toggleGroup(\''+gid+'\')" '+
+        'ondblclick="event.stopPropagation();renameGroup(\''+gid+'\')" '+
+        'oncontextmenu="grpMenu(event,\''+gid+'\')" ondragstart="grpDragStart(event,this)" ondragend="grpDragEnd()">'+
+        '<span class="ar">▶</span><span class="nm" title="双击改名">'+esc(g.name||'(未命名)')+
+        ' <span style="color:#8b95a3;font-weight:400">✎</span></span>'+
+        '<span class="cnt">'+pages.length+' 页</span></div>'+
+      '<div class="bd">'+(pages.length?pages.map(function(p){return pageRow(p,1);}).join(''):'<div class="hint" style="padding:8px">空谱：把右侧页面拖进来</div>')+'</div></div>';
+  });
+  document.getElementById('groups').innerHTML=gh||'<div class="hint">还没有分类。右键这里新建一份谱，或点「自动分份」。</div>';
+  document.getElementById('nGroup').textContent=names.length;
+  // 未分类
+  var fh='', list=sortedItems(free);
+  list.forEach(function(it){fh+=cardHtml(it);});
+  document.getElementById('dropRight').innerHTML=fh||'<div class="hint" style="padding:14px">全部已分类 🎉</div>';
+  document.getElementById('nFree').textContent=list.length;
+  // 组里没有但 groups 里有记录的（空组）保持显示，已在上面
+  bindDrag();
+}
+function grpDragStart(e,el){
+  GRPDRAG=el.getAttribute('data-gid'); DRAG=null;
+  el.style.opacity=.45;
+  try{e.dataTransfer.setData('text/plain','grp:'+GRPDRAG);e.dataTransfer.effectAllowed='move';}catch(_){}
+  var tip=document.getElementById('dragtip');
+  if(tip){tip.classList.add('on');tip.textContent='拖到另一「份」上 = 调整前后顺序';}
+}
+function grpDragEnd(){
+  GRPDRAG=null;
+  document.querySelectorAll('.hd').forEach(function(x){x.style.opacity=1;});
+  dragEnd();
+}
+function rowAt(el){ return el.closest('[data-id]'); }
+function rowOver(e,el){
+  if(GRPDRAG) return;                      // 拖的是整份，不走这里
+  var row=rowAt(el); if(!row) return;
+  if(!DRAG) return;
+  if(row.getAttribute('data-id')===DRAG) { rowLeave(row); return; }
+  e.preventDefault(); e.stopPropagation();
+  var r=row.getBoundingClientRect();
+  var after=(e.clientY-r.top) > r.height/2;
+  row.classList.toggle('dropbefore',!after);
+  row.classList.toggle('dropafter',after);
+}
+function rowLeave(el){
+  var row=rowAt(el); if(!row) return;
+  row.classList.remove('dropbefore','dropafter');
+}
+function rowDrop(e,el){
+  var row=rowAt(el); if(!row||!DRAG) return;
+  e.preventDefault(); e.stopPropagation();
+  var after=(e.clientY-row.getBoundingClientRect().top) > row.getBoundingClientRect().height/2;
+  rowLeave(row);
+  var src=ITEMS.filter(function(x){return x.id===DRAG;})[0];
+  var dst=ITEMS.filter(function(x){return x.id===row.getAttribute('data-id');})[0];
+  var movedId=DRAG; DRAG=null; dragEnd();
+  if(!src||!dst||src.id===dst.id) return;
+  var gid=dst.group||'';
+  if((src.group||'')!==gid){
+    // 跨组拖动：先按普通"移入该组"，再排到目标页旁边
+    moveTo([src.id],gid);
+    return;
+  }
+  var list=sortedItems(ITEMS.filter(function(x){return (x.group||'')===gid;}));
+  var ids=list.map(function(x){return x.id;});
+  var ia=ids.indexOf(movedId); if(ia<0) return;
+  ids.splice(ia,1);
+  var ib=ids.indexOf(dst.id); if(ib<0) return;
+  ids.splice(after?ib+1:ib,0,movedId);
+  api('/api/reorder_pages',{group:gid,ids:ids}).then(function(r){
+    if(r.ok) refresh();
+  });
+}
+function nudge(id,delta){
+  var it=ITEMS.filter(function(x){return x.id===id;})[0]; if(!it) return;
+  var gid=it.group||'';
+  var list=sortedItems(ITEMS.filter(function(x){return (x.group||'')===gid;}));
+  var ids=list.map(function(x){return x.id;});
+  var i=ids.indexOf(id); if(i<0) return;
+  var j=i+delta; if(j<0||j>=ids.length) return;
+  ids.splice(j,0,ids.splice(i,1)[0]);
+  api('/api/reorder_pages',{group:gid,ids:ids}).then(function(r){ if(r.ok) refresh(); });
+}
+function bindDrag(){
+  document.querySelectorAll('[data-id][draggable]').forEach(function(el){
+    el.ondragstart=function(e){
+      DRAG=el.getAttribute('data-id');
+      el.style.opacity=.45;
+      try{e.dataTransfer.setData('text/plain',DRAG);e.dataTransfer.effectAllowed='move';}catch(_){}
+      var tip=document.getElementById('dragtip');
+      if(tip){tip.classList.add('on');
+        tip.textContent = el.classList.contains('card')?'拖到左侧某一份 = 归类':'拖到右侧 = 移出到未分类';}
+    };
+    el.ondragend=function(){el.style.opacity=1;dragEnd();};
+  });
+  // 右栏（含空白处）都能接住
+  ['right','dropRight'].forEach(function(id){
+    var r=document.getElementById(id); if(!r) return;
+    r.ondragover=function(e){e.preventDefault();e.dataTransfer.dropEffect='move';r.classList.add('over');};
+    r.ondragleave=function(e){ if(!r.contains(e.relatedTarget)) r.classList.remove('over'); };
+    r.ondrop=function(e){e.preventDefault();r.classList.remove('over');
+      if(DRAG){ moveTo([DRAG],''); DRAG=null; }};
+  });
+  // 左栏空白：不接受（避免误操作），但把高亮清掉
+  var l=document.getElementById('left');
+  if(l){
+    l.ondragover=function(e){ if(e.target.closest('.grp')) return; e.preventDefault(); };
+    l.ondrop=function(e){
+      if(e.target.closest('.grp')) return;
+      e.preventDefault();
+      if(!DRAG) return;
+      var it=ITEMS.filter(function(x){return x.id===DRAG;})[0]||{};
+      var guess=(it.title||it.song||'新谱').slice(0,30);
+      var name=prompt('在左栏空白处放下 = 新建一份谱，名字：', guess);
+      var id=DRAG; DRAG=null; dragEnd();
+      if(!name) return;
+      api('/api/group_new',{name:name}).then(function(r){
+        if(r.ok){ moveTo([id], r.group.id); }
+      });
+    };
+  }
+}
+function dragEnd(){
+  DRAG=null;
+  var tip=document.getElementById('dragtip'); if(tip) tip.classList.remove('on');
+  document.querySelectorAll('.over').forEach(function(x){x.classList.remove('over');});
+}
+function toggleGroup(gid){
+  var g=GROUPS[gid]||{}; g.collapsed=!g.collapsed; GROUPS[gid]=g;
+  render();
+  api('/api/group_toggle',{id:gid,collapsed:g.collapsed});
+}
+function grpOver(e,el){e.preventDefault();el.classList.add('over');}
+function grpDrop(e,el){e.preventDefault();el.classList.remove('over');
+  var gid=el.getAttribute('data-gid');
+  if(GRPDRAG){
+    if(GRPDRAG===gid){GRPDRAG=null;dragEnd();return;}
+    if(SORT_MODE!=='manual'){ setGroupSort('manual'); toast('已切回「手动」排序'); }
+    var ids=sortedGroups().map(function(g){return g.id;});
+    var ia=ids.indexOf(GRPDRAG), ib=ids.indexOf(gid);
+    GRPDRAG=null; dragEnd();
+    if(ia<0||ib<0) return;
+    ids.splice(ib,0,ids.splice(ia,1)[0]);
+    api('/api/group_order',{ids:ids}).then(function(r){
+      if(r.ok){ toast('顺序已保存'); refresh(); }
+    });
+    return;
+  }
+  if(DRAG){moveTo([DRAG],gid);DRAG=null;}}
+function moveTo(ids,gid){
+  api('/api/move',{ids:ids,group:gid}).then(function(r){
+    if(r.ok){
+      var gn=(GROUPS[gid]||{}).name;
+      toast(gid?('已移入 '+(gn||'该谱')):'已移出到未分类');
+      refresh();
+    }
+  });
+}
+function editTitle(id){
+  var it=ITEMS.filter(function(x){return x.id===id;})[0]||{};
+  var v=prompt('这一页的标题（留空 = 清掉标题）：', it.title||'');
+  if(v===null) return;
+  api('/api/title',{id:id,title:v.trim()}).then(function(r){
+    if(r.ok){ toast(v.trim()?'标题已改':'标题已清空'); refresh(); }
+  });
+}
+function clearTitles(opt){
+  var msg = opt.all ? '清空全库所有页的 AI 标题？（分组不变）'
+          : opt.group ? '清空这一份里所有页的标题？'
+          : '清空这一页的标题？';
+  if(!confirm(msg)) return;
+  api('/api/titles_clear',opt).then(function(r){
+    if(r.ok){ toast('已清空 '+r.n+' 页标题'); refresh(); }
+  });
+}
+function groupPick(id){
+  var names=Object.keys(GROUPS).map(function(g){return GROUPS[g].name;});
+  var s=prompt('输入要归入的谱名（不存在会新建）：\n现有：'+names.join(' / '));
+  if(!s) return;
+  var gid=null;
+  Object.keys(GROUPS).forEach(function(g){ if(!gid && GROUPS[g].name===s) gid=g; });
+  if(!gid){
+    api('/api/group_new',{name:s}).then(function(r){ if(r.ok) moveTo([id],r.group.id); });
+  }else moveTo([id],gid);
+}
+/* ---------- 右键菜单 ---------- */
+function menuAt(x,y,items){
+  var old=document.getElementById('ctx'); if(old) old.remove();
+  var d=document.createElement('div'); d.id='ctx';
+  d.style.cssText='position:fixed;z-index:999;background:#1b222b;border:1px solid #2b333d;border-radius:8px;padding:4px;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,.6)';
+  d.style.left=x+'px'; d.style.top=y+'px';
+  items.forEach(function(it){
+    var b=document.createElement('div');
+    b.textContent=it.t;
+    b.style.cssText='padding:6px 10px;font-size:12.5px;border-radius:5px;cursor:pointer;color:'+(it.danger?'#ff6b6b':'#e6e9ee');
+    b.onmouseenter=function(){b.style.background='#26313d';};
+    b.onmouseleave=function(){b.style.background='transparent';};
+    b.onclick=function(){d.remove();it.f();};
+    d.appendChild(b);
+  });
+  document.body.appendChild(d);
+  setTimeout(function(){window.addEventListener('click',function h(){d.remove();window.removeEventListener('click',h);},{once:true});},0);
+}
+document.getElementById('left').addEventListener('contextmenu',function(e){
+  if(e.target.closest('.grp')||e.target.closest('.page')) return;
+  e.preventDefault();
+  menuAt(e.clientX,e.clientY,[{t:'新建一份谱…',f:function(){
+    var s=prompt('新谱名称：'); if(!s) return;
+    api('/api/group_new',{name:s}).then(function(r){ if(r.ok){toast('已新建：'+s);refresh();} });
+  }}]);
+});
+function renameGroup(gid){
+  var g=GROUPS[gid]||{};
+  var s=prompt('这一份的名称（留空 = 未命名）：', g.name||'');
+  if(s===null) return;
+  api('/api/group_rename',{id:gid,name:s.trim()||'(未命名)'}).then(function(r){
+    if(r.ok){ toast('已改名'); refresh(); }
+  });
+}
+function grpMenu(e,gid){
+  e.preventDefault();
+  var g=GROUPS[gid]||{};
+  menuAt(e.clientX,e.clientY,[
+    {t:'重命名…',f:function(){var s=prompt('新名称：',g.name||'');if(s){
+      api('/api/group_rename',{id:gid,name:s}).then(refresh);}}},
+    {t:'全部打开纠错（第一页）',f:function(){
+      var it=ITEMS.filter(function(x){return x.group===gid;})[0]; if(it) openScore(it.id);}},
+    {t:'清空这一份所有页的标题',f:function(){
+      if(!confirm('把「'+(g.name||'')+'」里所有页的 AI 标题清掉？（分组不变）')) return;
+      clearTitles({group:gid});
+    }},
+    {t:'删除这份谱（页面退回未分类）',danger:true,f:function(){
+      if(!confirm('删除「'+(g.name||'')+'」？里面的页面会退回未分类。')) return;
+      api('/api/group_del',{id:gid}).then(refresh);}}
+  ]);
+}
+function pageMenu(e,id,inGroup){
+  e.preventDefault();
+  var it=ITEMS.filter(function(x){return x.id===id;})[0]||{};
+  menuAt(e.clientX,e.clientY,[
+    {t:'打开纠错',f:function(){openScore(id);}},
+    {t:'改标题…',f:function(){editTitle(id);}},
+    {t:'清空这一页的标题',f:function(){clearTitles({ids:[id]});}},
+    {t:'归到别的谱…',f:function(){groupPick(id);}},
+    {t:'上移一位',f:function(){nudge(id,-1);}},
+    {t:'下移一位',f:function(){nudge(id,1);}},
+    {t:'删除到垃圾箱（不再出现）',danger:true,f:function(){delPages([id]);}},
+    inGroup?{t:'移出到未分类',f:function(){moveTo([id],'');}}:null
+  ].filter(Boolean));
+}
+
+/* ---------- 设置 / 垃圾箱 ---------- */
+function toggleSet(e){
+  e.stopPropagation();
+  var m=document.getElementById('setMenu');
+  m.style.display = m.style.display==='block'?'none':'block';
+  document.body.addEventListener('click',function h(){m.style.display='none';
+    document.body.removeEventListener('click',h);},{once:true});
+}
+function modalClose(){document.getElementById('modal').className='';pvHide();}
+function trashOpen(){
+  document.getElementById('setMenu').style.display='none';
+  document.getElementById('modalTitle').textContent='垃圾箱';
+  document.getElementById('modalHint').textContent='删除的页面被标记为「已删除」，扫描/导入都不会让它复活';
+  fetch('/api/trash').then(function(r){return r.json();}).then(function(j){
+    var h='';
+    (j.items||[]).forEach(function(it){
+      h+='<div class="tr-row"><img loading="lazy" src="/api/thumb?id='+it.id+'" '+
+         'onmouseenter="pvShow(\''+it.id+'\')" onmouseleave="pvHide()">'+
+         '<div class="m"><div>'+esc(nm(it))+'</div>'+
+         '<div class="d">'+esc((it.image||'').split('\\').pop())+'</div>'+
+         '<div class="d">删除于 '+esc(it.deleted_at||'')+'</div></div>'+
+         '<button class="mini" onclick="doRestore(\''+it.id+'\')">恢复</button>'+
+         '<button class="mini" onclick="doPurge(\''+it.id+'\')">永久删除</button></div>';
+    });
+    document.getElementById('modalBody').innerHTML=h||'<div class="hint" style="padding:14px">垃圾箱是空的</div>';
+    document.getElementById('modal').className='on';
+  });
+}
+function delPages(ids){
+  if(!ids||!ids.length) return;
+  if(!confirm('删除 '+ids.length+' 个页面到垃圾箱？\n标记后重扫/重导都不会再出现（可在设置→垃圾箱恢复）。')) return;
+  api('/api/delete',{ids:ids}).then(function(r){
+    if(r.ok){toast('已删除 '+r.n+' 个（垃圾箱可恢复）');refresh();}
+  });
+}
+function doRestore(id){
+  api('/api/restore',{ids:[id]}).then(function(r){ if(r.ok){toast('已恢复');trashOpen();refresh();} });
+}
+function doPurge(id){
+  if(!confirm('永久删除这个页面（连本地文件一起删，无法恢复）？')) return;
+  api('/api/purge',{ids:[id]}).then(function(r){ if(r.ok){toast('已永久删除');trashOpen();refresh();} });
+}
+function trashRestoreAll(){
+  fetch('/api/trash').then(function(r){return r.json();}).then(function(j){
+    var ids=(j.items||[]).map(function(x){return x.id;});
+    if(!ids.length){toast('垃圾箱是空的');return;}
+    api('/api/restore',{ids:ids}).then(function(){toast('已全部恢复');modalClose();refresh();});
+  });
+}
+function trashPurgeAll(){
+  fetch('/api/trash').then(function(r){return r.json();}).then(function(j){
+    var ids=(j.items||[]).map(function(x){return x.id;});
+    if(!ids.length){toast('垃圾箱是空的');return;}
+    if(!confirm('永久删除垃圾箱里的 '+ids.length+' 个页面？文件也会删，无法恢复。')) return;
+    api('/api/purge',{ids:ids}).then(function(r){toast('已清空');modalClose();refresh();});
+  });
+}
+function runGroupByTitle(){
+  document.getElementById('setMenu').style.display='none';
+  if(!confirm('按已识别的 AI 标题重新分份？\n（没有标题的页会按目录+时间挂到最近的份里）')) return;
+  api('/api/group_by_title',{}).then(function(r){ if(started(r)) toast('正在按标题分份…',60000); });
+}
+function runGroupTitles(){
+  document.getElementById('setMenu').style.display='none';
+  api('/api/group_titles',{}).then(function(r){
+    if(r.ok){ toast('已按 AI 标题更新 '+r.updated+' 个谱名'); refresh(); }
+  });
+}
+function manualOpen(){
+  document.getElementById('setMenu') && (document.getElementById('setMenu').style.display='none');
+  var keys=['C','D','E','F','G','A','B','#C','bD','#F','bB'];
+  function fill(id,ph){
+    var el=document.getElementById(id); if(el.options.length<=1){
+      keys.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='1='+k;el.appendChild(o);});
+    }
+    el.value=ph||'';
+  }
+  fill('mKey','');
+  fill('mTarget','');
+  api('/api/lib',{}).then(function(j){
+    var g=document.getElementById('mGroup');
+    g.length=1;
+    var gs=Object.keys(j.groups||{}).map(function(k){return j.groups[k];})
+             .sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+    gs.forEach(function(x){var o=document.createElement('option');o.value=x.id;
+      o.textContent='加入：'+(x.name||'(未命名)');g.appendChild(o);});
+  });
+  document.getElementById('mModal').style.display='flex';
+}
+function manualClose(){document.getElementById('mModal').style.display='none';}
+function manualSubmit(){
+  var f=document.getElementById('mFiles').files;
+  if(!f||!f.length){toast('先选谱面图片');return;}
+  var fd=new FormData();
+  for(var i=0;i<f.length;i++) fd.append('files',f[i],f[i].name);
+  fd.append('title',document.getElementById('mTitle').value||'');
+  fd.append('key',document.getElementById('mKey').value||'');
+  fd.append('target',document.getElementById('mTarget').value||'');
+  var g=document.getElementById('mGroup').value; if(g) fd.append('group_id',g);
+  document.getElementById('mState').textContent='导入中…';
+  fetch('/api/import_manual',{method:'POST',body:fd}).then(function(r){return r.json();})
+    .then(function(r){
+      if(!r.ok){document.getElementById('mState').textContent='失败：'+(r.error||'');return;}
+      document.getElementById('mState').textContent='导入完成：新增 '+r.added+'，已存在 '+r.dup+'，失败 '+r.bad;
+      toast('人工导入完成：'+r.added+' 页');
+      manualClose(); refresh();
+    }).catch(function(e){document.getElementById('mState').textContent='出错：'+e;});
+}
+function editsInfo(){
+  document.getElementById('setMenu').style.display='none';
+  api('/api/edits',{}).then(function(r){
+    var lbl=Object.keys(r.by_label||{}).map(function(k){return k+':'+r.by_label[k];}).join('  ');
+    var ev=Object.keys(r.by_event||{}).map(function(k){return k+':'+r.by_event[k];}).join('  ');
+    var txt='已记录操作 '+(r.events||0)+' 条，字形样本 '+(r.samples||0)+' 个\n\n'+
+            '样本标签：'+(lbl||'（暂无）')+'\n\n操作分布：'+(ev||'（暂无）')+'\n\n'+
+            '记录开关：'+(r.enabled?'开':'关')+'\n\n要切换开关吗？';
+    if(confirm(txt)){
+      api('/api/edits',{enabled:!r.enabled}).then(function(r2){
+        toast('修正记录已'+(r2.enabled?'开启':'关闭'));
+      });
+    }
+  });
+}
+function runDedupeExact(){
+  document.getElementById('setMenu').style.display='none';
+  if(!confirm('去掉完全重复的页（同一张图或同一份 OCR 文本）？\n每组只留 1 页，其余进垃圾箱（可恢复）。')) return;
+  api('/api/dedupe_exact',{}).then(function(r){ if(started(r)) toast('正在去重…',60000); });
+}
+function runDupes(){
+  document.getElementById('setMenu').style.display='none';
+  api('/api/dupes',{}).then(function(r){ if(started(r)) toast('正在检测重复…',60000); });
+}
+
+/* ---------- AI 配置 ---------- */
+function llmOpen(){
+  document.getElementById('setMenu').style.display='none';
+  document.getElementById('modalTitle').textContent='AI 配置';
+  document.getElementById('modalHint').textContent='只把 OCR 后的文字发给接口，图片不会上传';
+  fetch('/api/llm').then(function(r){return r.json();}).then(function(c){
+    var h='<div style="display:flex;flex-direction:column;gap:10px;max-width:560px">';
+    h+='<label class="hint">接口地址 base（OpenAI 兼容，末尾不带 /chat/completions）<br>'+
+       '<input type="text" id="aiBase" style="width:100%" placeholder="https://api.openai.com/v1" value="'+esc(c.base||'')+'"></label>';
+    h+='<label class="hint">模型 model<br>'+
+       '<input type="text" id="aiModel" style="width:100%" placeholder="gpt-4o-mini" value="'+esc(c.model||'')+'"></label>';
+    h+='<div class="hint" id="aiState">'+(c.configured?'当前状态：已配置（来源 '+(c.source||'-')+'）':'当前状态：未配置')+'</div>';
+    h+='<label class="hint">API Key'+(c.has_key?('（已配置 '+esc(c.key_mask)+'，留空则不改）'):'')+'<br>'+
+       '<input type="password" id="aiKey" style="width:100%" placeholder="sk-..."></label>';
+    h+='<div class="hint" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">'+
+       '<label><input type="checkbox" id="aiSearch" '+(c.use_search!==false?'checked':'')+'> 允许联网搜索歌名（用歌词搜，$0.75/1000 次）</label>'+
+       '<label>并发：<select id="aiWorkers">'+
+       [1,3,5,10,16].map(function(n){return '<option value="'+n+'"'+(n===(c.workers||10)?' selected':'')+'>'+n+'</option>';}).join('')+
+       '</select></label></div>';
+    h+='<div style="display:flex;gap:8px"><button class="p" onclick="llmSave()">保存</button>'+
+       '<button onclick="llmTest()">测试连接</button>'+
+       '<span class="hint" id="aiMsg"></span></div>';
+    h+='<div class="hint">也可以直接编辑 <span class="mono">work\\llm.json</span>（已提供 <span class="mono">work\\llm.json.example</span>）。</div>';
+    h+='</div>';
+    document.getElementById('modalBody').innerHTML=h;
+    document.getElementById('modal').className='on';
+  });
+}
+function llmSave(){
+  var b=document.getElementById('aiBase').value,
+      m=document.getElementById('aiModel').value,
+      k=document.getElementById('aiKey').value;
+  var us=document.getElementById('aiSearch'), wk=document.getElementById('aiWorkers');
+  api('/api/llm_save',{base:b,model:m,key:k,
+    use_search: us?us.checked:true, workers: wk?parseInt(wk.value,10):10}).then(function(r){
+    if(r.ok){
+      document.getElementById('aiMsg').textContent='已保存';
+      document.getElementById('aiDot').textContent=r.config.configured?'（已配置）':'（未配置）';
+      toast('AI 配置已保存');refresh();
+    }else{
+      document.getElementById('aiMsg').textContent='失败：'+(r.error||'');
+    }
+  });
+}
+function llmTest(){
+  var el=document.getElementById('aiMsg');
+  el.textContent='测试中…';
+  api('/api/llm_test',{}).then(function(r){
+    el.textContent = r.ok ? ('连接成功：'+ (r.sample||'ok')) : ('失败：'+(r.error||''));
+    el.style.color = r.ok ? '#2ed07a' : '#ff6b6b';
+  });
+}
+
+/* ---------- 数据 ---------- */
+function refresh(){
+  return Promise.all([fetch('/api/lib').then(function(r){return r.json();}),
+                      fetch('/api/sources').then(function(r){return r.json();})])
+  .then(function(res){
+    var j=res[0]; ITEMS=j.items||[]; GROUPS=j.groups||{}; STATS=j.stats||{};
+    var dup=ITEMS.filter(function(x){return x.dup;}).length;
+    var free=ITEMS.filter(function(x){return !x.group;}).length;
+    document.getElementById('trashN').textContent=(j.trash_n?'（'+j.trash_n+'）':'（0）');
+    var dt=document.getElementById('aiDot'); if(dt) dt.textContent=j.llm?'（已配置）':'（未配置）';
+    document.getElementById('stats').innerHTML='共 <b>'+ITEMS.length+'</b> 页　未分类 <b>'+free+
+      '</b>　已转调 <b>'+dup+'</b>　OCR '+(j.ocr?'✓':'✗')+'　AI '+(j.llm?'✓（只发文字）':'✗');
+    render();
+  });
+}
+function rescan(silent){
+  return api('/api/rescan',{}).then(function(r){
+    if(!r.ok){ if(!silent) toast('更新失败'); return; }
+    if(r.added>0){ toast('新登记 '+r.added+' 个文件（共 '+r.total+' 页）'); refresh(); }
+    else if(!silent) toast('没有新文件（共 '+r.total+' 页）');
+  });
+}
+function groupAuto(){ api('/api/group_auto',{}).then(function(r){ if(started(r)) toast('正在自动分份…',60000); }); }
+function started(r){ if(!r.ok){ toast('有任务在跑，等它结束'); return false; } watch(); return true; }
+function openScore(id){ api('/api/open',{id:id}).then(function(r){ if(started(r)){toast('打开中…',60000);} }); }
+function runOne(id,mode,force){ api('/api/process',{id:id,mode:mode,force:!!force}).then(function(r){ if(started(r)) toast('已开始：'+mode); }); }
+function needAI(fn){
+  fetch('/api/llm').then(function(r){return r.json();}).then(function(c){
+    if(!c.configured){ toast('还没配置 AI，先填一下 base / model / key'); llmOpen(); return; }
+    fn();
+  });
+}
+function runAll(mode,force){
+  if(mode==='ai'){ needAI(function(){ runAll2(mode,force); }); return; }
+  if(mode==='ocr'){
+    var lb={serial:'串行',cpu_gpu:'CPU+GPU 并行',gpu2:'双 GPU 并行',max:'最大调度 3GPU+3CPU'}[OCR_MODE]||OCR_MODE;
+    if(!confirm('批量 OCR（只提取文字，本地跑，不花 token）\n方式：'+lb+'。继续？')) return;
+    api('/api/ocr_all',{ocr_mode:OCR_MODE}).then(function(r){
+      if(started(r)) toast('OCR 中（'+lb+'）…',60000);
+    });
+    return;
+  }
+  runAll2(mode,force);
+}
+function runAll2(mode,force){
+  if(mode==='ai'&&!confirm('AI 补信息：只发送 OCR 文字，不上传图片，会花 token。继续？')) return;
+  api('/api/process_all',{mode:mode,force:!!force}).then(function(r){ if(started(r)) toast('已开始：'+mode,60000); });
+}
+function runDedupe(){ api('/api/dedupe',{}).then(function(r){ if(started(r)) toast('检查中…',60000); }); }
+function runClassify(){
+  needAI(function(){
+    fetch('/api/llm').then(function(r){return r.json();}).then(function(c){
+      var msg='AI 分类：'+(c.use_search?'**联网**（歌词搜歌名，只发文字）':'不联网')+
+              '，'+(c.workers||10)+' 并发，会花 token。\n\n继续？';
+      if(!confirm(msg)) return;
+      api('/api/classify',{}).then(function(r){ if(started(r)) toast('AI 分类中…',60000); });
+    });
+  });
+}
+function runClassifyOld(){
+  needAI(function(){
+    if(!confirm('AI 分类：只发送 OCR 文字给 LLM 猜歌名（花 token）。继续？')) return;
+    api('/api/classify',{}).then(function(r){ if(started(r)) toast('AI 分类中…',60000); });
+  });
+}
+function runArchive(){ if(!confirm('把还在引用外部文件的图片复制进 library\\ 目录？')) return;
+  api('/api/archive',{}).then(function(r){ if(started(r)) toast('复制中…',60000); }); }
+function doImportPath(){
+  var root=document.getElementById('root').value.trim(); if(!root){toast('先填路径');return;}
+  toast('扫描中…',120000);
+  api('/api/import',{root:root}).then(function(r){
+    if(!r.ok){toast('失败：'+(r.error||''));return;}
+    toast('新增 '+r.added+' 页，共 '+r.total+' 页'); refresh();
+  });
+}
+function upload(input){
+  var files=[].slice.call(input.files||[]); input.value='';
+  if(!files.length) return;
+  var folder=(files[0].webkitRelativePath||'').split('/')[0]||'上传';
+  document.getElementById('upstate').textContent='准备上传 '+files.length+' 个…';
+  api('/api/source_add',{name:folder,kind:'upload',note:''}).then(function(r){
+    var sid=(r.source||{}).id||'', i=0, added=0, dup=0, bad=[];
+    function next(){
+      if(i>=files.length){
+        document.getElementById('upstate').textContent='';
+        var m='导入完成：新增 '+added+'，重复 '+dup;
+        if(bad.length) m+='，跳过 '+bad.length+'：\n'+bad.slice(0,6).join('\n');
+        toast(m,bad.length?10000:4000); refresh(); return;
+      }
+      var batch=files.slice(i,i+8), fd=new FormData();
+      batch.forEach(function(f){fd.append('files',f,f.webkitRelativePath||f.name);});
+      if(sid) fd.append('source_id',sid);
+      i+=batch.length;
+      document.getElementById('upstate').textContent='上传中 '+i+' / '+files.length+'…';
+      fetch('/api/upload',{method:'POST',body:fd}).then(function(x){return x.json();}).then(function(j){
+        if(j.ok){added+=j.added||0;dup+=j.dup||0;(j.badnames||[]).forEach(function(n){bad.push(n);});}
+        next();
+      }).catch(function(e){bad.push('网络错误');next();});
+    }
+    next();
+  });
+}
+function watch(){
+  if(poll) return;
+  poll=setInterval(function(){
+    fetch('/api/job').then(function(r){return r.json();}).then(function(j){
+      JOB=j; var bar=document.getElementById('bar');
+      if(j.running){
+        bar.className='on';
+        var lb={open:'打开',process:'出图',render:'批量出图',ocr:'OCR',ai:'AI',classify:'AI分类',
+                dedupe:'查重',archive:'归档',group:'分份'}[j.kind]||j.kind;
+        document.getElementById('bmsg').textContent='【'+lb+'】'+(j.msg||'')+(j.total>1?(' '+j.done+'/'+j.total):'');
+        document.getElementById('pi').style.width=Math.max(4,j.total?Math.round(j.done/j.total*100):5)+'%';
+      }else{
+        bar.className='';
+        if(j.error) toast('任务失败：'+j.error,9000);
+        else if(j.kind==='open'&&j.done>0){
+          clearInterval(poll);poll=null;toast('打开中，跳转…',3000);
+          setTimeout(function(){location.href='/';},500);return;
+        }else if(j.kind&&j.msg) toast('完成：'+j.msg,3500);
+        if(j.kind) refresh();
+        clearInterval(poll);poll=null;
+      }
+    });
+  },800);
+}
+document.getElementById('root').value='E:\\DeepSeek-Harness\\工作目录\\测试\\转调简谱';
+var _gs=document.getElementById('gsort'); if(_gs) _gs.value=SORT_MODE;
+refresh().then(function(){ rescan(true); });
+</script><div id="mModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center">
+  <div style="background:#151b23;border:1px solid #2b333d;border-radius:12px;padding:18px 20px;width:520px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+    <h3 style="margin:0 0 12px">人工导入（不用 AI）</h3>
+    <div class="hint" style="margin-bottom:10px">只收图片和基本信息，不跑 OCR、不调接口。打开后每个音符都是橙框，点一下填数字即可。</div>
+    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <span style="width:72px;color:#9aa5b1">谱名</span>
+      <input id="mTitle" placeholder="例如：纯蓝（留空则用文件名）" style="flex:1">
+    </div>
+    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <span style="width:72px;color:#9aa5b1">原调</span>
+      <select id="mKey" style="flex:1"><option value="">（稍后在纠错页设）</option></select>
+    </div>
+    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <span style="width:72px;color:#9aa5b1">目标调</span>
+      <select id="mTarget" style="flex:1"><option value="">默认（=原调）</option></select>
+    </div>
+    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <span style="width:72px;color:#9aa5b1">归入</span>
+      <select id="mGroup" style="flex:1"><option value="">新建一份（用谱名）</option></select>
+    </div>
+    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <span style="width:72px;color:#9aa5b1">谱面图片</span>
+      <input type="file" id="mFiles" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.avif" style="flex:1">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="manualClose()">取消</button>
+      <button class="p" onclick="manualSubmit()">导入</button>
+    </div>
+    <div class="hint" id="mState" style="margin-top:8px"></div>
+  </div>
+</div>
+</body></html>

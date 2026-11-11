@@ -1,0 +1,10 @@
+tone C OK
+tone G OK
+tone D OK
+tone A OK
+tone E OK
+tone F OK
+tone B OK
+--- replaceImgTone 试参 ---
+OK -> Image (1003, 742, 3)
+saved work\et_out_test.jpg

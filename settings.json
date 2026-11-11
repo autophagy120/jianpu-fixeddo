@@ -1,0 +1,92 @@
+{
+  "_说明": "改成你想要的即可；命令行 --set 段.键=值 可临时覆盖",
+  "input": {
+    "exts": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".bmp",
+      ".webp",
+      ".gif"
+    ],
+    "skip_produced": true,
+    "work_digit_height": 28,
+    "min_digit_height": 10
+  },
+  "recognize": {
+    "digit_min_prob": 0.55,
+    "acc_min_prob": 0.6,
+    "glyph_min_height_ratio": 0.45,
+    "dot_max_height_ratio": 0.3,
+    "dot_max_gap_ratio": 1.0,
+    "rule_hlen_ratio": 0.75
+  },
+  "layout": {
+    "music_row_digit_frac": 0.28,
+    "music_row_min_glyphs": 4,
+    "lyric_row_max_digit_frac": 0.28,
+    "absorb_mark_rows": true
+  },
+  "key": {
+    "auto_from_filename": true,
+    "auto_from_sibling": true,
+    "declared_in_image": true
+  },
+  "transpose": {
+    "target": "C",
+    "prefer_flat_spelling": false,
+    "octave_mode": "absolute"
+  },
+  "fixed_do": {
+    "ref": "auto",
+    "csharp_threshold": 3,
+    "prefer_flat": true,
+    "style": "cn"
+  },
+  "harmonica": {
+    "enabled": true,
+    "breath_penalty": 1.0,
+    "slide_penalty": 0.6,
+    "accidental_penalty": 0.6,
+    "allow_degree_swap": true,
+    "annotate": false
+  },
+  "phrases": {
+    "mode": "punctuation",
+    "bars_per_phrase": 4
+  },
+  "lyrics": {
+    "mode": "none",
+    "source": "none",
+    "file": "",
+    "continuation": "～",
+    "max_notes_per_char": 4,
+    "align_anchors": true
+  },
+  "output": {
+    "formats": [
+      "json"
+    ],
+    "font": "C:\\Windows\\Fonts\\msyh.ttc",
+    "ink_color": "red",
+    "footer": true,
+    "orig_key_name_style": "flat"
+  },
+  "llm": {
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-flash",
+    "max_tokens": 2000,
+    "use_for": [
+      "lyric_ocr",
+      "row_check"
+    ]
+  },
+  "_key_override": null,
+  "_out": "D:\\简谱转调项目\\out\\上上下下",
+  "_formats": [
+    "json"
+  ],
+  "_refresh_lyrics": false,
+  "_only_keyed": true,
+  "_preproc": "off"
+}
