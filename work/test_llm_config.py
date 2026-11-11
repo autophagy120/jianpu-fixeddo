@@ -30,11 +30,11 @@ had = os.path.exists(CFG)
 backup = open(CFG, encoding="utf8").read() if had else None
 
 r = post("/api/llm_save", {"base": "https://example.invalid/v1", "model": "test-model",
-                           "key": "sk-test-1234567890"})
+                           "key": "dummy-key-for-test"})
 print("\n保存:", r)
 c = getj("/api/llm")
 print("读回:", c)
-print("  key 未完整回传:", "sk-test-1234567890" not in json.dumps(c))
+print("  key 未完整回传:", "dummy-key-for-test" not in json.dumps(c))
 print("  打码显示:", c["key_mask"])
 
 t = post("/api/llm_test", {})
