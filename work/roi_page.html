@@ -238,7 +238,8 @@ function stat(){
   var nu=0,i; for(i=0;i<NOTES.length;i++) if(NOTES[i].u) nu++;
   var el=document.getElementById('stat');
   var t=(ST.source_key===ST.target_key)?('1='+ST.source_key):('1='+ST.source_key+' → 1='+ST.target_key);
-  el.innerHTML='<b>'+t+'</b> 　已识别 <b>'+(NOTES.length-nu)+'</b> 　橙框 <b>'+nu+'</b> 　转调点 <b>'+((ST.key_changes||[]).length)+'</b>';
+  var sv=ST.autosaved?(' 　已自动保存 <b>'+ST.autosaved+'</b>'):'';
+  el.innerHTML='<b>'+t+'</b> 　已识别 <b>'+(NOTES.length-nu)+'</b> 　橙框 <b>'+nu+'</b> 　转调点 <b>'+((ST.key_changes||[]).length)+'</b>'+sv;
 }
 function reload(){
   return new Promise(function(res){
