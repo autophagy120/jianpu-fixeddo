@@ -129,6 +129,7 @@ var KCKEYS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 var kcMode=false, kcAt=null, ST={notes:[],key_changes:[],source_key:'',target_key:''};
 var img=new Image(), imgOrig=new Image(), showOrig=false, NOTES=[], scale=1, zoomPct=100;
 var base=document.createElement('canvas'), bctx=base.getContext('2d'), baseReady=false;
+var fitOnce=false;   // 首次打开自动适应宽度
 var moveDrag=null;   // Alt+拖动 = 微调音符坐标
 var selId=null, selIds=[], selData=null, selDigit='6', roi=null, plans=[], drag=null, insAt=null, insDigit='6', insOct=0, clickTimer=null;
 
@@ -244,7 +245,9 @@ function reload(){
     img.onload=function(){
       base.width=img.naturalWidth; base.height=img.naturalHeight;
       bctx.drawImage(img,0,0); baseReady=true;
-      layout();loadNotes().then(res);
+      layout();
+      if(!fitOnce){ fitOnce=true; try{ fitWidth(); }catch(e){} }   // 默认适应屏幕
+      loadNotes().then(res);
     };
     img.onerror=function(){log('图片加载失败');res();};
     img.src='/img?t='+Date.now();

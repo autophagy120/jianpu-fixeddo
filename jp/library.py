@@ -177,6 +177,8 @@ def import_uploaded(filename: str, data: bytes, song: str = "", source_id: str =
     items = load()
     if i in items:
         return i, False
+    if i in (_read_all().get("tombstones") or []):
+        return i, False          # 删过的页，重扫不复活
     song = song or os.path.splitext(os.path.basename(filename))[0]
     dst = store_image_any(i, data, filename)
     _now = int(time.time())
@@ -460,6 +462,11 @@ def scan(root: str, key: str = "") -> Tuple[int, int, int]:
             path = os.path.join(dirpath, f)
             i = _id(path)
             seen += 1
+            # 删过的页（含"彻底删除"）不许被重扫拉回来 —— scan 是直接建条目的，
+            # 不经过 import_uploaded，所以这里必须自己查墓碑。
+            if i in (_read_all().get("tombstones") or []):
+                seen -= 1
+                continue
             ext = os.path.splitext(f)[1].lower()
             src_path = path
             if ext in (".avif", ".heic", ".heif") and i not in items:
@@ -938,6 +945,10 @@ def soft_delete(ids: List[str]) -> int:
         it["deleted"] = True
         it["deleted_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
         it["updated"] = it["deleted_at"]
+        tomb = d.get("tombstones") or []
+        if i not in tomb:
+            tomb.append(i)
+        d["tombstones"] = tomb
         n += 1
     _write_all(d)
     return n
@@ -955,7 +966,12 @@ def restore(ids: List[str]) -> int:
         n += 1
     _write_all(d)
     return n
-
+    # 恢复的页要从墓碑里移除，否则下次重扫还是"删过"的状态
+    _d = _read_all()
+    tomb = [x for x in (_d.get("tombstones") or []) if x not in set(ids)]
+    if len(tomb) != len(_d.get("tombstones") or []):
+        _d["tombstones"] = tomb
+        _write_all(_d)
 
 def purge(ids: List[str]) -> int:
     """永久删除：连文件和记录一起删掉（垃圾箱里"彻底清掉"才用）。"""
@@ -966,6 +982,11 @@ def purge(ids: List[str]) -> int:
         it = d["items"].pop(i, None)
         if not it:
             continue
+        # 永久删除也要留墓碑：否则下次「重扫/更新」会把同一张图再导入回来
+        tomb = d.get("tombstones") or []
+        if i not in tomb:
+            tomb.append(i)
+        d["tombstones"] = tomb
         shutil.rmtree(os.path.join(LIB_DIR, i), ignore_errors=True)
         n += 1
     _write_all(d)
@@ -1321,6 +1342,22 @@ def group_untitled(ids=None, name_prefix: str = "未命名", log=print) -> dict:
     return dict(groups=len(made), pages=sum(m["n"] for m in made), detail=made)
 
 
+def _mark_deleted(d: dict, i: str, reason: str = ""):
+    """标记删除 + 记墓碑（任何删除路径都必须走这里，否则重扫会复活）。"""
+    it = d["items"].get(i)
+    if not it:
+        return False
+    it["deleted"] = True
+    it["deleted_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    if reason:
+        it["deleted_reason"] = reason
+    tomb = d.get("tombstones") or []
+    if i not in tomb:
+        tomb.append(i)
+    d["tombstones"] = tomb
+    return True
+
+
 def dedupe_exact(log=print) -> dict:
     """去掉**完全重复**的页：同一张图（字节一致）或同一份 OCR 文本（同一页换个格式）。
 
@@ -1372,9 +1409,7 @@ def dedupe_exact(log=print) -> dict:
         for it in group[1:]:
             if it.get("deleted"):
                 continue
-            it["deleted"] = True
-            it["deleted_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            it["deleted_reason"] = "完全重复"
+            _mark_deleted(d, it["id"], "完全重复")
             removed += 1
     # 组内页数重算 + 清掉空组
     cnt = {}

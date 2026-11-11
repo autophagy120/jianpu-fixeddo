@@ -140,6 +140,17 @@ input[type=text],select{background:#12171d;color:var(--fg);border:1px solid var(
 <div id="modal"><div class="box"><div class="hd"><b id="modalTitle">垃圾箱</b><span class="hint" id="modalHint"></span><button class="mini" onclick="trashRestoreAll()">全部恢复</button><button class="mini" onclick="trashPurgeAll()">清空</button><button class="mini" onclick="modalClose()">关闭</button></div><div class="bd" id="modalBody"></div></div></div>
 <img id="pv" alt="">
 <script>
+/* 任何 JS 错误都显示到标题栏，别让页面"静默空白" */
+window.onerror=function(m,src,l,c){try{
+  var e=document.getElementById('stats');
+  if(e)e.innerHTML='<span style="color:#ff6b6b">JS 错误：'+m+' @'+l+':'+c+'</span>';
+  document.title='JSERR: '+m+' @'+l;
+}catch(_){}};
+window.addEventListener('unhandledrejection',function(ev){try{
+  var e=document.getElementById('stats');
+  if(e)e.innerHTML='<span style="color:#ff6b6b">Promise 拒绝：'+(ev.reason&&ev.reason.message||ev.reason)+'</span>';
+}catch(_){}});
+
 var ITEMS=[], GROUPS={}, STATS={}, JOB={running:false}, poll=null, DRAG=null, GRPDRAG=null;
 var KEYS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 var LBL={new:'未处理',ocr:'已OCR',done:'已出图',error:'失败'};
@@ -258,7 +269,7 @@ function render(){
   ITEMS.forEach(function(it){ if(it.group) (groups[it.group]=groups[it.group]||[]).push(it); else free.push(it); });
   var gh='', _gl=sortedGroups(), names=_gl.map(function(g){return g.id;});
   _gl.forEach(function(_go){ var gid=_go.id;
-    var g=GROUPS[gid], pages=sortedItems(groups[gid]||[]);
+    var g=GROUPS[gid]||{name:'(未命名)'}, pages=sortedItems(groups[gid]||[]);
     var open=(g.collapsed===false);   /* 默认折叠，只有明确点开过才展开 */
     gh+='<div class="grp'+(open?' open':'')+'" data-gid="'+gid+'" ondragover="grpOver(event,this)" ondragleave="this.classList.remove(\'over\')" ondrop="grpDrop(event,this)">'+
       '<div class="hd" draggable="true" data-gid="'+gid+'" onclick="toggleGroup(\''+gid+'\')" '+
@@ -781,6 +792,13 @@ function refresh(){
     document.getElementById('stats').innerHTML='共 <b>'+ITEMS.length+'</b> 页　未分类 <b>'+free+
       '</b>　已转调 <b>'+dup+'</b>　OCR '+(j.ocr?'✓':'✗')+'　AI '+(j.llm?'✓（只发文字）':'✗');
     render();
+  }).catch(function(e){
+    var el=document.getElementById('stats');
+    if(el) el.innerHTML='<span style="color:#ff6b6b">加载失败：'+(e&&e.message?e.message:e)+'</span>';
+    var g=document.getElementById('groups');
+    if(g) g.innerHTML='<div class="hint" style="color:#ff6b6b">读取 /api/lib 失败：'+
+      esc(String(e&&e.message?e.message:e))+'<br>点右上角「刷新」重试</div>';
+    throw e;
   });
 }
 function rescan(silent){
@@ -894,9 +912,21 @@ function watch(){
     });
   },800);
 }
-document.getElementById('root').value='E:\\DeepSeek-Harness\\工作目录\\测试\\转调简谱';
 var _gs=document.getElementById('gsort'); if(_gs) _gs.value=SORT_MODE;
-refresh().then(function(){ rescan(true); });
+/* 首次加载：先占位，失败要能看见，不允许"空白一片" */
+(function(){
+  var g=document.getElementById('groups');
+  if(g) g.innerHTML='<div class="hint">加载中…</div>';
+  var boot=function(){
+    refresh().then(function(){ rescan(true); })
+      .catch(function(e){
+        var el=document.getElementById('stats');
+        if(el) el.innerHTML='<span style="color:#ff6b6b">启动失败：'+esc(String(e&&e.message?e.message:e))+'</span>';
+      });
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
 </script><div id="mModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center">
   <div style="background:#151b23;border:1px solid #2b333d;border-radius:12px;padding:18px 20px;width:560px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)">
     <h3 style="margin:0 0 8px" id="mTitleH">导入</h3>
