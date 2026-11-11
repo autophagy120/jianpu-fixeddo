@@ -39,3 +39,10 @@ work/_*.js
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# 用户数据 / 训练中间产物
+library.json
+library.json.*
+*.pt
+jp/out_synth_preview.png
+work/samples/*.jpg
