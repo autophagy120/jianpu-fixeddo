@@ -115,21 +115,12 @@ input[type=text],select{background:#12171d;color:var(--fg);border:1px solid var(
   </div>
 </header>
 <div id="imp">
-  <details><summary>导入（文件夹 / 图片 / 路径）</summary>
+  <details open><summary>导入</summary>
     <div class="row">
-      <button class="p" onclick="document.getElementById('dpick').click()">选择文件夹</button>
-      <button onclick="document.getElementById('fpick').click()">选择图片</button>
-      <button class="p" onclick="manualOpen()" title="不跑 OCR / 不调 AI：直接填谱名+调号+选图，进去自己点音符">人工导入（不用 AI）</button>
-      <input type="file" id="dpick" webkitdirectory directory multiple style="display:none" onchange="upload(this)">
-      <input type="file" id="fpick" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.avif,.heic,.heif,image/*" style="display:none" onchange="upload(this)">
-      <span class="hint" id="upstate"></span>
+      <button class="p" onclick="impOpen('manual')" title="自己填谱名和调号，OCR 照常跑，不调 AI">人工导入</button>
+      <button onclick="impOpen('auto')" title="自动 OCR + AI 认歌名 + 自动分份">AI 批量导入</button>
+      <span class="hint" id="upstate">人工 = 你定谱名（仍会本地 OCR）· AI = 全自动认名分份</span>
     </div>
-    <div class="row">
-      <input type="text" id="root" placeholder="或粘贴本机路径（目录/单图，只登记不复制）" style="flex:1;min-width:280px">
-      <button onclick="doImportPath()">按路径登记</button>
-      <button onclick="runArchive()">复制进本地库</button>
-    </div>
-    <div class="hint">支持 jpg/png/gif/bmp/webp/tif/avif（heic 需插件，失败会列出）。原调在下面逐页调。</div>
   </details>
 </div>
 <div id="app">
@@ -224,6 +215,7 @@ function cardHtml(it){
       '<button class="mini" onclick="runOne(\''+it.id+'\',\'render\')">出图</button>'+
       '<button class="mini" onclick="groupPick(\''+it.id+'\')">归类…</button></div></div></div>';
 }
+var IMP_MODE='manual';
 var OCR_MODE = (function(){ try{return localStorage.getItem('ocrmode')||'max';}catch(e){return 'max';} })();
 function setOcrMode(m){
   OCR_MODE = m;
@@ -585,45 +577,64 @@ function runGroupTitles(){
     if(r.ok){ toast('已按 AI 标题更新 '+r.updated+' 个谱名'); refresh(); }
   });
 }
-function manualOpen(){
-  document.getElementById('setMenu') && (document.getElementById('setMenu').style.display='none');
+function impOpen(mode){
+  IMP_MODE = mode;
+  var manual = (mode==='manual');
+  document.getElementById('mTitleH').textContent = manual ? '人工导入' : 'AI 批量导入';
+  document.getElementById('mDesc').textContent = manual
+    ? '你自己填谱名和调号；OCR 照常在本地跑（不调 AI、不花 token）。'
+    : '自动本地 OCR → AI 认歌名 → 自动分份。谱名可留空，让 AI 填。';
+  document.getElementById('mTitleRow').style.display = manual ? 'flex' : 'none';
+  document.getElementById('mGroupRow').style.display = manual ? 'flex' : 'none';
   var keys=['C','D','E','F','G','A','B','#C','bD','#F','bB'];
-  function fill(id,ph){
-    var el=document.getElementById(id); if(el.options.length<=1){
-      keys.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='1='+k;el.appendChild(o);});
+  ['mKey','mTarget'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el.options.length<=1){
+      var o=document.createElement('option'); o.value=''; o.textContent='（自动/不设）'; el.appendChild(o);
+      keys.forEach(function(k){var o2=document.createElement('option');o2.value=k;o2.textContent='1='+k;el.appendChild(o2);});
     }
-    el.value=ph||'';
-  }
-  fill('mKey','');
-  fill('mTarget','');
+    el.value='';
+  });
   api('/api/lib',{}).then(function(j){
-    var g=document.getElementById('mGroup');
-    g.length=1;
+    var g=document.getElementById('mGroup'); g.length=1;
     var gs=Object.keys(j.groups||{}).map(function(k){return j.groups[k];})
              .sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
     gs.forEach(function(x){var o=document.createElement('option');o.value=x.id;
       o.textContent='加入：'+(x.name||'(未命名)');g.appendChild(o);});
   });
+  document.getElementById('mState').textContent='';
   document.getElementById('mModal').style.display='flex';
 }
-function manualClose(){document.getElementById('mModal').style.display='none';}
-function manualSubmit(){
+function impClose(){document.getElementById('mModal').style.display='none';}
+function impSubmit(){
   var f=document.getElementById('mFiles').files;
   if(!f||!f.length){toast('先选谱面图片');return;}
   var fd=new FormData();
   for(var i=0;i<f.length;i++) fd.append('files',f[i],f[i].name);
-  fd.append('title',document.getElementById('mTitle').value||'');
+  fd.append('title',(document.getElementById('mTitle').value||''));
   fd.append('key',document.getElementById('mKey').value||'');
   fd.append('target',document.getElementById('mTarget').value||'');
   var g=document.getElementById('mGroup').value; if(g) fd.append('group_id',g);
-  document.getElementById('mState').textContent='导入中…';
-  fetch('/api/import_manual',{method:'POST',body:fd}).then(function(r){return r.json();})
+  var url = IMP_MODE==='auto' ? '/api/import_auto' : '/api/import_manual';
+  var st=document.getElementById('mState');
+  st.textContent='上传中…';
+  document.getElementById('mGo').disabled=true;
+  fetch(url,{method:'POST',body:fd}).then(function(r){return r.json();})
     .then(function(r){
-      if(!r.ok){document.getElementById('mState').textContent='失败：'+(r.error||'');return;}
-      document.getElementById('mState').textContent='导入完成：新增 '+r.added+'，已存在 '+r.dup+'，失败 '+r.bad;
-      toast('人工导入完成：'+r.added+' 页');
-      manualClose(); refresh();
-    }).catch(function(e){document.getElementById('mState').textContent='出错：'+e;});
+      if(!r.ok){st.textContent='失败：'+(r.error||'');document.getElementById('mGo').disabled=false;return;}
+      st.textContent='处理中（OCR 比较慢，请等）…';
+      var t=setInterval(function(){
+        fetch('/api/job').then(function(x){return x.json();}).then(function(j){
+          if(j.running){ st.textContent = (j.msg||'处理中') + '　' + (j.total?(j.done+'/'+j.total):''); }
+          else {
+            clearInterval(t);
+            st.textContent = j.error ? ('出错：'+j.error) : (j.msg||'完成');
+            document.getElementById('mGo').disabled=false;
+            toast('导入完成'); refresh();
+          }
+        });
+      }, 800);
+    }).catch(function(e){st.textContent='出错：'+e;document.getElementById('mGo').disabled=false;});
 }
 function editsInfo(){
   document.getElementById('setMenu').style.display='none';
@@ -833,32 +844,32 @@ document.getElementById('root').value='E:\\DeepSeek-Harness\\工作目录\\测�
 var _gs=document.getElementById('gsort'); if(_gs) _gs.value=SORT_MODE;
 refresh().then(function(){ rescan(true); });
 </script><div id="mModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center">
-  <div style="background:#151b23;border:1px solid #2b333d;border-radius:12px;padding:18px 20px;width:520px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)">
-    <h3 style="margin:0 0 12px">人工导入（不用 AI）</h3>
-    <div class="hint" style="margin-bottom:10px">只收图片和基本信息，不跑 OCR、不调接口。打开后每个音符都是橙框，点一下填数字即可。</div>
-    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+  <div style="background:#151b23;border:1px solid #2b333d;border-radius:12px;padding:18px 20px;width:540px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+    <h3 style="margin:0 0 8px" id="mTitleH">导入</h3>
+    <div class="hint" id="mDesc" style="margin-bottom:10px"></div>
+    <div class="row" id="mTitleRow" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <span style="width:72px;color:#9aa5b1">谱名</span>
       <input id="mTitle" placeholder="例如：纯蓝（留空则用文件名）" style="flex:1">
     </div>
     <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <span style="width:72px;color:#9aa5b1">原调</span>
-      <select id="mKey" style="flex:1"><option value="">（稍后在纠错页设）</option></select>
+      <select id="mKey" style="flex:1"></select>
     </div>
     <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <span style="width:72px;color:#9aa5b1">目标调</span>
-      <select id="mTarget" style="flex:1"><option value="">默认（=原调）</option></select>
+      <select id="mTarget" style="flex:1"></select>
     </div>
-    <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <div class="row" id="mGroupRow" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <span style="width:72px;color:#9aa5b1">归入</span>
-      <select id="mGroup" style="flex:1"><option value="">新建一份（用谱名）</option></select>
+      <select id="mGroup" style="flex:1"><option value="">新建一份</option></select>
     </div>
     <div class="row" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <span style="width:72px;color:#9aa5b1">谱面图片</span>
       <input type="file" id="mFiles" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.avif" style="flex:1">
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="manualClose()">取消</button>
-      <button class="p" onclick="manualSubmit()">导入</button>
+      <button onclick="impClose()">取消</button>
+      <button class="p" id="mGo" onclick="impSubmit()">开始</button>
     </div>
     <div class="hint" id="mState" style="margin-top:8px"></div>
   </div>

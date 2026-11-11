@@ -1188,16 +1188,60 @@ def make_handler():
             import jp.library as LIB
             pth = self.path
             # ---- 上传导入（浏览器文件/文件夹选择器）必须先解 multipart，不能先读 JSON
-            if pth.startswith("/api/import_manual"):
+            if pth.startswith("/api/import_manual") or pth.startswith("/api/import_auto"):
+                auto = pth.startswith("/api/import_auto")
                 files, fields = self._multipart()
                 if not files:
                     return self._send(200, dict(ok=False, error="没有收到文件"))
-                res = LIB.import_manual(files,
-                                        title=(fields.get("title") or "").strip(),
-                                        key=(fields.get("key") or "").strip(),
-                                        target=(fields.get("target") or "").strip(),
-                                        group_id=(fields.get("group_id") or "").strip())
-                return self._send(200, res)
+                title = (fields.get("title") or "").strip()
+                key = (fields.get("key") or "").strip()
+                target = (fields.get("target") or "").strip()
+                gid = (fields.get("group_id") or "").strip()
+
+                def run_import(job):
+                    tag = "AI 批量导入" if auto else "人工导入"
+                    job.set(total=1, done=0, msg="%s：收文件…" % tag)
+                    res = LIB.ingest_files(files, title=title, key=key, target=target,
+                                           group_id=gid,
+                                           log=lambda m: job.set(msg="%s：%s" % (tag, str(m)[:90])))
+                    ids = res.get("ids") or []
+                    if not ids:
+                        job.set(done=1, msg="%s：没有新增页" % tag)
+                        return
+                    job.set(total=max(1, len(ids)), done=0,
+                            msg="%s：OCR %d 页…" % (tag, len(ids)))
+                    LIB.ocr_batch_ids(ids, mode="max",
+                                      log=lambda m: job.set(msg=str(m)[:110]))
+                    for i in ids:
+                        upd = {}
+                        it = LIB.get(i) or {}
+                        if title:
+                            upd["title"] = title
+                        if key:
+                            upd["key"] = key
+                        if target:
+                            upd["target"] = target
+                        upd["no_ai"] = True
+                        upd["manual"] = not auto
+                        if it.get("ocr_txt"):
+                            upd["status"] = "done" if it.get("out") else "ocr"
+                        if upd:
+                            LIB.update(i, **upd)
+                    if auto:
+                        job.set(msg="%s：AI 认歌名（%d 页）…" % (tag, len(ids)))
+                        done = 0
+                        for i in ids:
+                            try:
+                                _ai_fill_one(LIB, i)
+                            except Exception as e:
+                                job.set(msg="AI 失败（%s），继续" % str(e)[:60])
+                            done += 1
+                            job.set(done=done)
+                        job.set(msg="%s：自动分份…" % tag)
+                        LIB.auto_group_by_title(log=lambda m: job.set(msg=str(m)[:110]))
+                    job.set(done=max(1, len(ids)), msg="%s：完成 %d 页" % (tag, len(ids)))
+
+                return self._send(200, dict(ok=start_job("import", run_import)))
             if pth.startswith("/api/upload"):
                 files, fields = self._multipart()
                 if not files:

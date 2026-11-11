@@ -1453,9 +1453,9 @@ def detect_key(ocr_text: str) -> str:
     return KEY_NAMES[int(pc) % 12]
 
 
-def import_manual(files, title: str = "", key: str = "", target: str = "",
-                  group_id: str = "", log=print) -> dict:
-    """人工导入：只收图片 + 基本信息，不做 OCR、不调 AI。
+def ingest_files(files, title: str = "", key: str = "", target: str = "",
+                 group_id: str = "", log=print) -> dict:
+    """把上传的文件收进库（不做 OCR、不调 AI），返回 ids。
 
     需求：很多时候谱子是自己画的/已经校对好的，不需要模型再看一遍；
     只要把图放进库、填上谱名和调号，剩下的在纠错页里手动点音符就行。
@@ -1485,12 +1485,7 @@ def import_manual(files, title: str = "", key: str = "", target: str = "",
         ids.append(i)
         added += 1 if created else 0
         dup += 0 if created else 1
-        # 空 OCR 文本：让打开时"零音符 + 满屏橙框"，正好逐点回填
-        tp = ocr_path_for_id(i)
-        os.makedirs(os.path.dirname(tp), exist_ok=True)
-        if not os.path.exists(tp):
-            open(tp, "w", encoding="utf8").write("")
-        fields = dict(ocr_txt=tp, status="manual", no_ai=True, manual=True, strength=0)
+        fields = dict(status="new", no_ai=True, manual=True)
         if title:
             fields["title"] = title
         if key:
@@ -1509,9 +1504,41 @@ def import_manual(files, title: str = "", key: str = "", target: str = "",
         _write_all(dict(items=load(), groups=gs,
                         sources=_read_all().get("sources") or [],
                         trash=_read_all().get("trash") or []))
-    log("人工导入：新增 %d，已存在 %d，失败 %d（组 %s）" % (added, dup, bad, gid or "-"))
+    log("收文件：新增 %d，已存在 %d，失败 %d（组 %s）" % (added, dup, bad, gid or "-"))
     return dict(ok=True, added=added, dup=dup, bad=bad, ids=ids, group=gid,
                 title=title)
+
+
+def import_manual(files, title: str = "", key: str = "", target: str = "",
+                  group_id: str = "", log=print) -> dict:
+    """人工导入 = **标题/调号由人填，OCR 照常跑**（不调 AI）。
+
+    和"AI 批量导入"的区别只有一点：不联网猜歌名。
+    """
+    r = ingest_files(files, title=title, key=key, target=target,
+                     group_id=group_id, log=log)
+    ids = r.get("ids") or []
+    if ids:
+        log("人工导入：开始 OCR（%d 页）" % len(ids))
+        ocr_batch_ids(ids, mode="max", log=log)
+        for i in ids:
+            upd = {}
+            it = get(i) or {}
+            if title:
+                upd["title"] = title
+            if key:
+                upd["key"] = key
+            if target:
+                upd["target"] = target
+            upd["no_ai"] = True
+            upd["manual"] = True
+            if it.get("ocr_txt"):
+                upd["status"] = "done" if it.get("out") else "ocr"
+            if upd:
+                update(i, **upd)
+        log("人工导入完成：%d 页（OCR 已跑，未调 AI）" % len(ids))
+    r["ocr"] = len(ids)
+    return r
 
 
 def ensure_ocr(it: dict, force: bool = False) -> str:
