@@ -63,6 +63,7 @@ button[disabled]{opacity:.5;cursor:progress}
         <option value="0">严格</option><option value="1">标准</option><option value="2">加强</option>
       </select>
       <button onclick="saveLib()" title="把当前识别结果和修改写进库缓存，下次打开秒开">保存到库</button>
+      <button onclick="openRead()" title="只读、预渲染、多页并排的演奏视角">演奏阅读</button>
       <button id="kcBtn" onclick="toggleKc()">标记转调</button>
       <span class="t">原调</span><select id="srcKey" onchange="setSourceKey(this.value)" title="默认整份谱跟着第一页；改这里会同步到整份（可勾「仅本页」）"></select>
       <label class="t" style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="keyScopePage">仅本页</label>
@@ -695,6 +696,11 @@ function setStrength(level){
       busy(false);
       document.querySelectorAll('button').forEach(function(x){x.disabled=false;});
     });
+}
+function openRead(){
+  var id=(ST.page||{}).id;
+  if(!id){ log('这一页不是从乐谱库打开的，没有阅读入口'); return; }
+  window.open('/read?id='+encodeURIComponent(id), '_blank');
 }
 function saveLib(){
   api('/save',{}).then(function(r){

@@ -83,6 +83,7 @@ input[type=text],select{background:#12171d;color:var(--fg);border:1px solid var(
 .page.dropbefore,.card.dropbefore{box-shadow:0 -2px 0 0 var(--acc)}
 .page.dropafter,.card.dropafter{box-shadow:0 2px 0 0 var(--acc)}
 .grip{margin-right:2px}
+.rd{background:#1d3a2a;border-color:#2f6b45;padding:4px 9px;margin-left:6px;font-size:12px}
 </style></head><body>
 <header>
   <h1>乐谱库</h1><span class="st" id="stats">—</span>
@@ -277,7 +278,8 @@ function render(){
         'oncontextmenu="grpMenu(event,\''+gid+'\')" ondragstart="grpDragStart(event,this)" ondragend="grpDragEnd()">'+
         '<span class="ar">▶</span><span class="nm" title="双击改名">'+esc(g.name||'(未命名)')+
         ' <span style="color:#8b95a3;font-weight:400">✎</span></span>'+
-        '<span class="cnt">'+pages.length+' 页</span></div>'+
+        '<span class="cnt">'+pages.length+' 页</span>'+
+        '<button class="rd" onclick="event.stopPropagation();readGroup(\''+gid+'\')" title="演奏阅读：只读、预渲染、多页并排">▶</button></div>'+
       '<div class="bd">'+(pages.length?pages.map(function(p){return pageRow(p,1);}).join(''):'<div class="hint" style="padding:8px">空谱：把右侧页面拖进来</div>')+'</div></div>';
   });
   document.getElementById('groups').innerHTML=gh||'<div class="hint">还没有分类。右键这里新建一份谱，或点「自动分份」。</div>';
@@ -700,6 +702,13 @@ function waitJob(fn){
       if(!j.running){ clearInterval(t); fn(); }
     });
   },900);
+}
+function readGroup(gid){
+  var pages=(GROUPS[gid]&&ITEMS.filter(function(x){return x.group===gid;}))||[];
+  pages=pages.filter(function(x){return x.group===gid;})
+             .sort(function(a,b){return (a.group_pos||0)-(b.group_pos||0);});
+  if(!pages.length){toast('这份没有页');return;}
+  window.open('/read?id='+encodeURIComponent(pages[0].id), '_blank');
 }
 function editsInfo(){
   document.getElementById('setMenu').style.display='none';
