@@ -75,6 +75,10 @@ button[disabled]{opacity:.5;cursor:progress}
         <h2><span id="selTitle">选中音符</span>　<span id="selInfo"></span></h2>
         <div class="t2" id="selDigitTip">数字（点一下即改）</div><div class="g" id="selDigits"></div>
         <div class="t2">八度（点一下即改）</div><div class="g" id="selOcts"></div>
+        <div id="selMove" style="display:none;margin-top:8px">
+          <div class="t2">这一段是不是"对齐错位"（数字被配到了隔壁槽位）？</div>
+          <button onclick="assignSlot(selDigit,0,true)" title="把旁边那个同音挪到这个橙框位置，而不是新增一个">把旁边歪掉的同音挪过来</button>
+        </div>
         <div class="t2">字号</div><div class="g" id="selSizes"></div>
         <div class="row"><button onclick="delNote()">删除这个音</button>
           <button class="p" onclick="delSelected()">删除选中(<span id="selCnt">1</span>)</button>
@@ -363,12 +367,14 @@ function showSel(n, keepMulti){
     document.getElementById('selDigitTip').textContent='选数字 → 立即回填（再点八度调整）';
     buildDigits('selDigits','',function(ch){assignSlot(ch,0);});
     buildOcts('selOcts',0,function(v){assignSlot(selDigit,v);});
+    var _mv=document.getElementById('selMove'); if(_mv) _mv.style.display='block';
   }else{
     card.className='card';
     document.getElementById('selTitle').textContent='选中音符';
     document.getElementById('selInfo').innerHTML='#'+n.id+' 行'+n.row+' <b>'+n.digit+'</b> 点'+n.oct+
       (n.sc==='aux'?' · 辅助':' · 主字号')+(selIds.length>1?('　<b>已选 '+selIds.length+' 个</b>'):'');
     document.getElementById('selDigitTip').textContent='数字（点一下即改）';
+    var _mv2=document.getElementById('selMove'); if(_mv2) _mv2.style.display='none';
     buildDigits('selDigits',n.digit,function(ch){applyEdit(ch,n.oct);});
     buildOcts('selOcts',n.oct,function(v){applyEdit(n.digit,v);});
     buildSizes(n);
@@ -442,12 +448,12 @@ function applyEdit(d,o){
     if(r.ok){log('#'+id+' → '+d+' 点'+o); return afterEdit(b?[b]:null);}
   });
 }
-function assignSlot(d,o){
+function assignSlot(d,o,move){
   if(selId===null||selId>=0) return;
   var slot=-selId-1, b=boxOf(selId), boxes=b?[b]:null;
   if(b){boxes.push([b[0]-120,b[1]-40,b[2]+240,b[3]+80]);}   // 邻近音被挪动时也覆盖到
   selDigit=d;
-  api('/assign',{slot:slot,digit:d,oct:o}).then(function(r){
+  api('/assign',{slot:slot,digit:d,oct:o,move:!!move}).then(function(r){
     if(!r.ok){log('回填失败（槽位已变，刷新一下）');return;}
     log((r.moved?'已把旁边歪掉的音挪到这里':'橙框回填')+' → '+d+' 点'+o+'（#'+r.id+'）');
     selId=r.id;
