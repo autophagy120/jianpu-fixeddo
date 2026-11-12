@@ -285,10 +285,38 @@ function goPage(dir){
   var pg=ST.page||{};
   var id=dir<0?pg.prev:pg.next;
   if(!id){log(dir<0?'已经是第一页':'已经是最后一页');return;}
+  var bp=document.getElementById('pgPrev'), bn=document.getElementById('pgNext');
+  if(bp) bp.disabled=true;
+  if(bn) bn.disabled=true;
   busy(true,'打开另一页…');
   api('/api/open',{id:id}).then(function(r){
-    if(r&&r.ok){ location.reload(); } else { busy(false); log('打开失败'); }
+    if(!r||!r.ok){ busy(false); log('打开失败'); redrawNav(); return; }
+    var t0=Date.now();
+    var poll=setInterval(function(){
+      fetch('/api/job').then(function(x){return x.json();}).then(function(j){
+        if(j.running){
+          if(Date.now()-t0>180000){clearInterval(poll);busy(false);log('打开超时');redrawNav();}
+          return;
+        }
+        if(j.error){clearInterval(poll);busy(false);log('打开失败：'+j.error);redrawNav();return;}
+        // 等服务端真的换成目标页再取图和音符，否则会拿到上一页/占位页 → "加载失败"
+        fetch('/state').then(function(x){return x.json();}).then(function(st){
+          var cur=(st.page||{}).id;
+          if(cur!==id && Date.now()-t0<20000){ return; }   // 再等一轮
+          clearInterval(poll);
+          busy(false);
+          log('第 '+((st.page||{}).idx||'?')+'/'+((st.page||{}).total||'?')+' 页');
+          reload();
+        });
+      });
+    },400);
   });
+}
+function redrawNav(){
+  var pg=ST.page||{};
+  var bp=document.getElementById('pgPrev'), bn=document.getElementById('pgNext');
+  if(bp) bp.disabled=!pg.prev;
+  if(bn) bn.disabled=!pg.next;
 }
 function syncSrc(){
   var sel=document.getElementById('srcKey');
