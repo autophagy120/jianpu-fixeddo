@@ -49,6 +49,10 @@ button[disabled]{opacity:.5;cursor:progress}
     <div id="tools">
       <button onclick="location.href='/lib'">← 乐谱库</button>
       <span class="t">__SONG__</span>
+      <button id="pgPrev" onclick="goPage(-1)" title="上一页（Alt+←）">◀ 上一页</button>
+      <span class="t" id="pgInfo">-/-</span>
+      <button id="pgNext" onclick="goPage(1)" title="下一页（Alt+→）">下一页 ▶</button>
+      <span class="t" id="pgGroup" style="color:#5a6673"></span>
       <button onclick="zoom(-1)">－</button><span class="t" id="zl">—</span><button onclick="zoom(1)">＋</button>
       <button onclick="fitWidth()">适应宽度</button>
       <span class="sp"></span>
@@ -60,6 +64,8 @@ button[disabled]{opacity:.5;cursor:progress}
       </select>
       <button onclick="saveLib()" title="把当前识别结果和修改写进库缓存，下次打开秒开">保存到库</button>
       <button id="kcBtn" onclick="toggleKc()">标记转调</button>
+      <span class="t">原调</span><select id="srcKey" onchange="setSourceKey(this.value)" title="默认整份谱跟着第一页；改这里会同步到整份（可勾「仅本页」）"></select>
+      <label class="t" style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="keyScopePage">仅本页</label>
       <span class="t">目标调</span><select id="tgt" onchange="setTarget(this.value)"></select>
       <button onclick="undo()">↶ 回退</button>
       <button onclick="reload()">重新渲染</button>
@@ -262,10 +268,47 @@ function reload(){
 function loadNotes(){return fetch('/state').then(function(r){return r.json();}).then(function(j){
   ST=j; NOTES=j.notes||[];
   var sel=document.getElementById('stg');
-  if(sel&&typeof j.strength==='number') sel.value=String(j.strength); syncTgt(); renderKcList(); stat(); draw();
+  if(sel&&typeof j.strength==='number') sel.value=String(j.strength);
+  var pg=j.page||{};
+  var pi=document.getElementById('pgInfo');
+  if(pi) pi.textContent=(pg.total?((pg.idx||0)+'/'+pg.total):'-/-');
+  var gname=document.getElementById('pgGroup');
+  if(gname) gname.textContent=pg.group_name||'';
+  var bp=document.getElementById('pgPrev'), bn=document.getElementById('pgNext');
+  if(bp) bp.disabled=!pg.prev;
+  if(bn) bn.disabled=!pg.next;
+  syncSrc(); syncTgt(); renderKcList(); stat(); draw();
 });}
 function bump(){ return applyRender(); }
 
+function goPage(dir){
+  var pg=ST.page||{};
+  var id=dir<0?pg.prev:pg.next;
+  if(!id){log(dir<0?'已经是第一页':'已经是最后一页');return;}
+  busy(true,'打开另一页…');
+  api('/api/open',{id:id}).then(function(r){
+    if(r&&r.ok){ location.reload(); } else { busy(false); log('打开失败'); }
+  });
+}
+function syncSrc(){
+  var sel=document.getElementById('srcKey');
+  if(!sel) return;
+  if(!sel.options.length){
+    var h='', i;
+    for(i=0;i<KCKEYS.length;i++) h+='<option value="'+KCKEYS[i]+'">1='+KCKEYS[i]+'</option>';
+    sel.innerHTML=h;
+  }
+  var k=(ST.page&&ST.page.key)||ST.source_key||'';
+  if(k) sel.value=k;
+}
+function setSourceKey(v){
+  if(!v) return;
+  var scope=document.getElementById('keyScopePage').checked?'page':'group';
+  api('/api/key',{key:v,scope:scope}).then(function(r){
+    if(r.ok){log('原调 → 1='+r.key+'（'+(scope==='page'?'仅本页':'整份')+'）');return applyRender();}
+    log('改原调失败');
+  });
+}
 function syncTgt(){
   var s=document.getElementById('tgt');
   if(!s.options.length){
@@ -661,6 +704,9 @@ window.addEventListener('keydown',function(e){
     document.getElementById('insInfo').textContent='八度 '+insOct;
   }
   if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){e.preventDefault();undo();}
+  if(e.altKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){
+    e.preventDefault(); goPage(e.key==='ArrowLeft'?-1:1);
+  }
 });
 window.addEventListener('keyup',function(e){ if(e.key==='Control'&&showOrig){showOrig=false;draw();} });
 window.addEventListener('blur',function(){ if(showOrig){showOrig=false;draw();} });

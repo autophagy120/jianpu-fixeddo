@@ -900,6 +900,75 @@ def group_del(gid: str) -> int:
     return n
 
 
+def group_pages(gid: str):
+    """这一份里所有页的 id（按页序）。"""
+    d = _read_all()
+    pages = sorted([v for v in d["items"].values()
+                    if v.get("group") == gid and not v.get("deleted")],
+                   key=lambda v: (v.get("group_pos") or 999, v.get("t0") or 0))
+    return [v["id"] for v in pages]
+
+
+def group_key(gid: str) -> str:
+    """整份谱的调性：组上显式设过的优先，否则跟随第一页。"""
+    d = _read_all()
+    g = (d.get("groups") or {}).get(gid) or {}
+    k = (g.get("key") or "").strip()
+    if k:
+        return k
+    pages = sorted([v for v in d["items"].values()
+                    if v.get("group") == gid and not v.get("deleted")],
+                   key=lambda v: (v.get("group_pos") or 999, v.get("t0") or 0))
+    for v in pages:
+        if (v.get("key") or "").strip():
+            return v["key"].strip()
+    return ""
+
+
+def set_key(ids, key: str, gid: str = "") -> int:
+    """设置调性：给若干页写 key；给了 gid 就同时记成"整份的调性"。"""
+    import time as _t
+    key = (key or "").strip()
+    d = _read_all()
+    n = 0
+    if gid:
+        g = d["groups"].get(gid)
+        if g is not None:
+            g["key"] = key
+    for i in ids:
+        it = d["items"].get(i)
+        if not it:
+            continue
+        it["key"] = key
+        it["updated"] = _t.strftime("%Y-%m-%d %H:%M:%S")
+        n += 1
+    _write_all(d)
+    return n
+
+
+def group_of(i: str) -> dict:
+    """这一页在库里的位置：所属组、第几页/共几页、上一页/下一页 id。"""
+    d = _read_all()
+    it = d["items"].get(i) or {}
+    gid = it.get("group") or ""
+    g = d["groups"].get(gid) or {}
+    out = dict(id=i, group=gid, group_name=g.get("name", ""),
+               idx=0, total=0, prev="", next="", key=it.get("key") or "",
+               group_key=g.get("key") or "")
+    if not gid:
+        return out
+    pages = sorted([v for v in d["items"].values()
+                    if v.get("group") == gid and not v.get("deleted")],
+                   key=lambda v: (v.get("group_pos") or 999, v.get("t0") or 0))
+    ids = [v["id"] for v in pages]
+    if i in ids:
+        k = ids.index(i)
+        out.update(idx=k + 1, total=len(ids),
+                   prev=ids[k - 1] if k > 0 else "",
+                   next=ids[k + 1] if k + 1 < len(ids) else "")
+    return out
+
+
 def move_to(ids: List[str], gid: str) -> int:
     """把页移进某一组（gid 为空 = 退回未分类），顺序接在组尾。"""
     d = _read_all()
