@@ -39,16 +39,17 @@ button:hover{border-color:var(--acc)}button:disabled{opacity:.45;cursor:default}
     <option value="dizi">竹笛指法</option>
   </select>
   <span id="trBox"><span class="t">转到</span>
-    <select id="target" onchange="rebuild()"></select>
+    <select id="target" onchange="markDirty()"></select>
   </span>
   <span id="dzBox" class="hidden"><span class="t">笛调</span>
-    <select id="dizi" onchange="rebuild()"></select>
+    <select id="dizi" onchange="markDirty()"></select>
     <span class="t">筒音做</span>
-    <select id="tongyin" onchange="rebuild()">
+    <select id="tongyin" onchange="markDirty()">
       <option>1</option><option>2</option><option>3</option><option>4</option>
       <option selected>5</option><option>6</option><option>7</option>
     </select>
   </span>
+  <button id="applyBtn" onclick="rebuild()">应用（Enter）</button>
   <span class="t" id="realKey"></span>
   <span class="sp" style="flex:1"></span>
   <button onclick="zoom(-1)">－</button><span class="t" id="zl">100%</span><button onclick="zoom(1)">＋</button>
@@ -63,6 +64,8 @@ button:hover{border-color:var(--acc)}button:disabled{opacity:.45;cursor:default}
 var KEYS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 var PI={};   // 页信息
 var INFO=null, TARGET='C', IMGS={}, ZOOM=1;
+var IMCACHE={};   // {key: {pageId: Image}}：切过的调不再重复下载
+var DIRTY=false;
 var screens=[], cur=0;
 
 function $(id){return document.getElementById(id);}
@@ -88,6 +91,11 @@ async function boot(){
   TARGET=$('target').value;
   await rebuild();
 }
+function markDirty(){
+  DIRTY=true;
+  var ab=$('applyBtn');
+  if(ab){ ab.disabled=false; ab.textContent='应用（Enter）'; }
+}
 function onMode(){
   var d=$('mode').value==='dizi';
   $('trBox').classList.toggle('hidden', d);
@@ -106,11 +114,9 @@ async function resolveTarget(){
   }
 }
 function plan(N){
+  // 像翻书：一屏最多两页（左右并排）；奇数页最后单页
   if(N<=1) return {per:1, rows:1, cols:1};
-  if(N===2) return {per:2, rows:1, cols:2};
-  if(N===3) return {per:3, rows:1, cols:3};
-  if(N===4) return {per:2, rows:1, cols:2};
-  return {per:4, rows:2, cols:2};
+  return {per:2, rows:1, cols:2};
 }
 function buildScreens(){
   var pages=INFO.pages||[], N=pages.length, p=plan(N);
@@ -123,22 +129,23 @@ async function rebuild(){
   await resolveTarget();
   var pages=INFO.pages||[];
   buildScreens();
-  IMGS={}; 
+  var cached=IMCACHE[TARGET]||{};
+  IMGS={};
   var total=pages.length, done=0;
   $('msg').textContent='预渲染 0/'+total+'（1='+TARGET+'）';
   $('pg').style.width='0%';
-  // 串行预取：服务端渲染一页缓存一页，翻页时就是本地切图
   for(var k=0;k<pages.length;k++){
     var p=pages[k];
-    var url='/readimg?id='+encodeURIComponent(p.id)+'&k='+encodeURIComponent(TARGET)+'&t='+Date.now();
-    try{
-      var img=await loadImg(url);
-      IMGS[p.id]=img;
-    }catch(e){}
+    if(cached[p.id]){ IMGS[p.id]=cached[p.id]; done++; continue; }
+    var url='/readimg?id='+encodeURIComponent(p.id)+'&k='+encodeURIComponent(TARGET);
+    try{ IMGS[p.id]=await loadImg(url); }catch(e){}
     done++;
     $('msg').textContent='预渲染 '+done+'/'+total+'（1='+TARGET+'）';
     $('pg').style.width=Math.round(done*100/total)+'%';
   }
+  IMCACHE[TARGET]=IMGS;
+  DIRTY=false;
+  var ab=$('applyBtn'); if(ab){ ab.disabled=true; ab.textContent='已应用 1='+TARGET; }
   $('load').classList.add('hidden');
   cur=0; render(); renderStrip();
   history.replaceState(null,'','/read?id='+encodeURIComponent(pages[0].id));
@@ -195,6 +202,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();flip(-1);}
   if(e.key==='+'||e.key==='='){zoom(1);}
   if(e.key==='-'){zoom(-1);}
+  if(e.key==='Enter'){ if(DIRTY) rebuild(); return; }
   if(e.key==='Home'){cur=0;render();renderStrip();}
   if(e.key==='End'){cur=screens.length-1;render();renderStrip();}
 });
