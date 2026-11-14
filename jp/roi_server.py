@@ -602,13 +602,39 @@ class State:
         return out
 
     def _row_for(self, x: float, y: float) -> int:
-        best, bd = -1, 1e18
-        for s, _o in self.pairs:
-            cy = (s.box[1] + s.box[3]) / 2.0
+        """这个位置属于哪一行（决定字号和基线）。
+
+        以前一律取"最近的已识别音符"的行号：如果这一行**整行都没识别出来**
+        （只有橙框），最近音可能在上一行/下一行，新补的音就会共用别人的基线，
+        于是"原位置被擦白、数字画到别的行去了"。
+        现在：离已知行太远就用**合成行号**（按 y 分桶），让这一行用自己的中位基线。
+        """
+        gh = max(8.0, float(self.med_h))
+        # 1) 优先：y 落在这行的**竖直范围内**（行内所有框的 y0..y1 再放宽半字高）
+        rows = {}
+        for s2, _o in self.pairs:
+            rows.setdefault(int(s2.row), []).append(s2.box)
+        best, bd = -1, None
+        for r, boxes in rows.items():
+            y0 = min(b[1] for b in boxes) - 0.5 * gh
+            y1 = max(b[3] for b in boxes) + 0.5 * gh
+            if y0 <= y <= y1:
+                cy = (y0 + y1) / 2.0
+                d = abs(cy - y)
+                if bd is None or d < bd:
+                    bd, best = d, r
+        if best >= 0:
+            return best
+        # 2) 退一步：最近的音很近（半字高内）也算同一行
+        for s2, _o in self.pairs:
+            cy = (s2.box[1] + s2.box[3]) / 2.0
             d = abs(cy - y)
-            if d < bd:
-                bd, best = d, int(s.row)
-        return best
+            if bd is None or d < bd:
+                bd, best = d, int(s2.row)
+        if best >= 0 and bd is not None and bd <= 0.6 * gh:
+            return best
+        # 3) 都不行 → 合成行号，让这一块用自己的基线（不会被画到别的行）
+        return 10000 + int(round(float(y) / max(10.0, 0.8 * gh)))
 
     def _resort(self):
         self.pairs.sort(key=lambda p: (int(p[0].row), p[0].box[1], p[0].box[0]))
@@ -670,19 +696,23 @@ class State:
             pass
 
     def _ocr_roi(self, x, y, w, h) -> dict:
-        """对框内区域重新 OCR，**只增不删**地把新数字并进音符表。
+        """对框内区域重新 OCR，**只增不删**，而且尽量"填槽位"而不是凭空加音。
 
-        以前是"先删框内原有音符、再把 OCR 结果补回来"，一旦 OCR 没读回数字
-        （比如框里主要是歌词/橙框、或者识别合并了字形），那些音就凭空消失，
-        用户看到的就是"框第二个框的时候第一个框和第二个框里的音全没了"。
-        现在改成：原有音符一个都不动，只补"附近还没有音符"的数字。
-        改错音仍然走单击修改，不会再有静默删除。
+        之前的做法是：RapidOCR 读到的每个数字，只要不在已有音符中心附近就新建一个。
+        问题：多字符框按等分宽度算中心，误差常有半个字，于是同一个音会被重复添加
+        （图上就是两个红字叠在一起、黑字没擦干净），行号也可能挂到别的行。
+
+        现在：
+          1. 数字中心若靠近**已有音符** → 跳过（已经识别过）；
+          2. 否则若靠近某个**橙框（未识别墨块）** → 用那个墨块的框来建音符（真正"补上"），
+             并且一个墨块只吃一个数字；
+          3. 都不靠 → 按 RapidOCR 的字符框新建，行号用 `_row_for`（可能给合成行）。
         """
         from . import ocr_boxes as OB
-        info = dict(found=0, added=0, skipped=0)
+        info = dict(found=0, added=0, skipped=0, filled=0)
         h_img, w_img = self.page.gray.shape[:2]
-        x0, y0 = max(0, x), max(0, y)
-        x1, y1 = min(w_img, x + w), min(h_img, y + h)
+        x0, y0 = max(0, int(x)), max(0, int(y))
+        x1, y1 = min(w_img, int(x + w)), min(h_img, int(y + h))
         if x1 - x0 < 6 or y1 - y0 < 6:
             return info
         crop = self.page.gray[y0:y1, x0:x1]
@@ -694,28 +724,80 @@ class State:
         if not chars:
             return info
         info["found"] = len(chars)
-        med = self.med_h
-        tol = max(4.0, 0.65 * med)
-        centers = [((s.box[0] + s.box[2]) / 2.0, (s.box[1] + s.box[3]) / 2.0)
-                   for s, _o in self.pairs]
+
+        gh = max(8.0, float(self.med_h))
+        note_c = [((s.box[0] + s.box[2]) / 2.0, (s.box[1] + s.box[3]) / 2.0) for s, _o in self.pairs]
+        unc = list(self.uncovered)
+        used = set()
+
+        def near(px, py, tol):
+            for (qx, qy) in note_c:
+                if abs(px - qx) <= tol and abs(py - qy) <= 1.2 * tol:
+                    return True
+            return False
+
         for c in chars:
             if not c.ch.isdigit():
                 continue
             cx, cy = x0 + c.cx, y0 + c.cy
-            # 这个位置已经有音符 → 不重复添加（也不删除原来的）
-            if any(abs(cx - px) <= tol and abs(cy - py) <= tol for px, py in centers):
+            if near(cx, cy, 0.75 * gh):
                 info["skipped"] += 1
                 continue
-            gw = max(6.0, c.w * 0.9)
-            gh = max(8.0, c.h * 0.9)
+            # 找最近的、还没被用过的橙框
+            best, bd = None, None
+            for k, comp in enumerate(unc):
+                if k in used:
+                    continue
+                ddx = abs((comp.x + comp.w / 2.0) - cx)
+                ddy = abs((comp.y + comp.h / 2.0) - cy)
+                if ddx <= 0.75 * max(gh, comp.w) and ddy <= 0.8 * gh:
+                    d = ddx + ddy
+                    if bd is None or d < bd:
+                        bd, best = d, k
+            if best is not None:
+                comp = unc[best]
+                used.add(best)
+                nb = core.Note(digit=str(c.ch), x=float(comp.x), box=comp.box,
+                               row=self._row_for(comp.x + comp.w / 2.0, comp.y + comp.h / 2.0),
+                               conf=0.55)
+                self.pairs.append((nb, XO.OcrNote(digit=str(c.ch), octave=0)))
+                note_c.append(((comp.x + comp.w / 2.0), (comp.y + comp.h / 2.0)))
+                info["filled"] += 1
+                info["added"] += 1
+                continue
+            cw = max(6.0, c.w * 0.9)
+            chh = max(8.0, c.h * 0.9)
             nb = core.Note(digit=str(c.ch), x=cx,
-                           box=(cx - gw / 2, cy - gh / 2, cx + gw / 2, cy + gh / 2),
-                           row=self._row_for(cx, cy), conf=0.5)
+                           box=(cx - cw / 2, cy - chh / 2, cx + cw / 2, cy + chh / 2),
+                           row=self._row_for(cx, cy), conf=0.45)
             self.pairs.append((nb, XO.OcrNote(digit=str(c.ch), octave=0)))
-            centers.append((cx, cy))
+            note_c.append((cx, cy))
             info["added"] += 1
         if info["added"]:
+            # 兜底去重：同一位置（半字高内）同数字的只留一个，
+            # 防止"多字符框等分"造成重影（两个红字叠在一起）。
+            gh2 = max(6.0, 0.45 * gh)
+            keep = []
+            for pair in self.pairs:
+                s1, o1 = pair
+                cx = (s1.box[0] + s1.box[2]) / 2.0
+                cy2 = (s1.box[1] + s1.box[3]) / 2.0
+                dup = False
+                for s2, o2 in keep:
+                    if str(o2.digit) != str(o1.digit):
+                        continue
+                    dx = abs((s2.box[0] + s2.box[2]) / 2.0 - cx)
+                    dy = abs((s2.box[1] + s2.box[3]) / 2.0 - cy2)
+                    if dx <= gh2 and dy <= gh2:
+                        dup = True
+                        break
+                if not dup:
+                    keep.append(pair)
+            if len(keep) != len(self.pairs):
+                info["dedup"] = len(self.pairs) - len(keep)
+                self.pairs = keep
             self._resort()
+            self.refresh_uncovered()
         return info
 
     def del_note(self, idx: int) -> bool:
