@@ -1344,7 +1344,7 @@ def make_handler():
                         return
                     job.set(total=max(1, len(ids)), done=0,
                             msg="%s：OCR %d 页…" % (tag, len(ids)))
-                    LIB.ocr_batch_ids(ids, mode="max",
+                    LIB.ocr_batch_ids(ids, mode="gpu_first",
                                       log=lambda m: job.set(msg=str(m)[:110]))
                     for i in ids:
                         upd = {}
@@ -1489,7 +1489,7 @@ def make_handler():
                     ED.set_enabled(bool(d.get("enabled")))
                 return self._send(200, ED.stats())
             if pth.startswith("/api/ocr_all"):
-                mode = str(d.get("ocr_mode") or "serial")
+                mode = str(d.get("ocr_mode") or "gpu_first")
                 ids = [str(x) for x in (d.get("ids") or [])] or list(LIB.load())
 
                 def run_ocr_all(job):

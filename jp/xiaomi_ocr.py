@@ -113,8 +113,11 @@ def _is_oom(err: str) -> bool:
 def plan_workers(mode: str):
     """返回 (gpu_工人数, cpu_工人数, 每个 cpu 工人的线程数)。
 
-    GTX1650 4G：模型 505MB + mmproj 198MB，单进程实测占用约 950MB →
-    GPU 工人最多 3 个（留余量）；CPU 用专用二进制，12 线程拆成 3 份。
+    实测（GTX1650 4G）：
+    - GPU 单张 ~40-170s，是主力；
+    - **一个 CPU 进程就会把 12 线程吃满**（llama.cpp 默认 -t=核数），单张 400s+；
+    - 3 个 GPU 进程会把 4G 显存挤爆（3.7G/4G），单张反而 600-750s。
+    所以默认 `gpu_first`：**1 GPU + 1 CPU**，CPU 只做"填料"，做不完的由 GPU 接管。
     """
     import os as _os
     g = int(_os.environ.get("OCR_GPU_WORKERS", "0") or 0)
@@ -126,21 +129,24 @@ def plan_workers(mode: str):
         return (g or 2), 0, 0
     if mode == "cpu_gpu":
         return (g or 1), (c or 1), (t or 6)
-    # max（默认）：**1 GPU + 3 CPU**。
-    # 实测 3 个 GPU 进程会把 4G 显存挤到 3.7G/4G，单页从 177s 掉到 600-750s
-    # （WDDM 超量分配走共享内存，比单进程还慢），所以 GPU 只开 1 个满速跑，
-    # 吞吐靠 CPU 工人补：CPU 单页约 400s，3 个并行 ≈ 1 页/133s，合计约 76s/页。
-    return (g or 1), (c or 3), (t or 3)
+    if mode == "max":
+        return (g or 1), (c or 3), (t or 3)
+    # gpu_first（默认）：1 GPU + 1 CPU，CPU 线程压到 4，别把整机吃满
+    return (g or 1), (c or 1), (t or 4)
 
 
-def ocr_batch(paths, mode: str = "serial", max_tokens: int = 2400,
+STEAL_AFTER = 0.0       # GPU 一空闲就复制 CPU 正在跑的那张（双跑，先完成者胜）
+
+
+def ocr_batch(paths, mode: str = "gpu_first", max_tokens: int = 2400,
               target_width: int = 1800, log=print, on_result=None) -> dict:
-    """批量 OCR，尽量把 GPU 和 CPU 都喂满。
+    """批量 OCR。
 
-    mode：serial（1 GPU）/ cpu_gpu（1 GPU + 1 CPU）/ gpu2（2 GPU）/
-          max（3 GPU + 3 CPU，默认最大调度）
-    调度方式：一个任务队列，GPU 工人和 CPU 工人各自抢任务；
-    GPU 抢得快就多干，CPU 慢但一直在跑，不会互相等。
+    mode：
+      - **gpu_first（默认）**：1 GPU + 1 CPU。GPU 先抢队列；CPU 只拿一件慢慢啃；
+        队列空了而 CPU 那张还没完（> STEAL_AFTER 秒）时，**GPU 接管这张**（重跑），
+        CPU 的结果作废 —— 也就是"CPU 跑不完的自动调度给 GPU"。
+      - serial / cpu_gpu / gpu2 / max：旧模式的固定工人数。
     """
     import queue
     import threading
@@ -150,52 +156,109 @@ def ocr_batch(paths, mode: str = "serial", max_tokens: int = 2400,
     if not paths:
         return results
     ng, nc, ct = plan_workers(mode)
-    nworkers = max(1, ng + nc)
-    log("OCR 调度：%d GPU + %d CPU（每 CPU 工人 %d 线程），共 %d 并发，任务 %d 页"
-        % (ng, nc, ct, nworkers, len(paths)))
+    gpu_first = (mode == "gpu_first")
+    log("OCR 调度：%d GPU + %d CPU（CPU %d 线程）%s，任务 %d 页"
+        % (ng, nc, ct, "，GPU 优先/可接管" if gpu_first else "", len(paths)))
 
     q = queue.Queue()
     for p in paths:
         q.put(p)
     lock = threading.Lock()
+    inflight = {}          # path -> 开始时间（只有 CPU 在跑）
+    stolen = set()
     done = [0]
     t0 = _t.time()
+    finished = threading.Event()
 
-    def worker(gpu_layers, threads, tag):
-        while True:
+    def save(p, txt, err, tag):
+        with lock:
+            if p in results:          # 双跑：另一边已经先完成
+                log("[%s] %s 另一路已先完成，丢弃这份" % (tag, p[-28:]))
+                return
+            if p in stolen and tag.startswith("CPU"):
+                log("[%s] %s 已被 GPU 抢跑，结果丢弃" % (tag, p[-28:]))
+                return
+            results[p] = txt
+            done[0] += 1
+            if on_result is not None:
+                try:
+                    on_result(p, txt)
+                except Exception as e:
+                    log("落盘失败：%s" % str(e)[:100])
+            el = _t.time() - t0
+            log("[%s] (%d/%d) %.0fs%s" % (tag, done[0], len(paths), el,
+                                         ("  失败：" + err) if err else ""))
+            if done[0] >= len(paths):
+                finished.set()
+
+    def run_one(p, tag, gpu_layers, threads):
+        try:
+            txt = ocr_image(p, max_tokens=max_tokens, gpu_layers=gpu_layers,
+                            target_width=target_width, threads=threads)
+            err = ""
+        except Exception as e:
+            txt, err = "", "%s: %s" % (type(e).__name__, str(e)[:140])
+        if not txt and gpu_layers > 0 and _is_oom(err):
+            try:
+                txt = ocr_image(p, max_tokens=max_tokens, gpu_layers=0,
+                                target_width=target_width, threads=ct or 4)
+                err = ""
+            except Exception as e:
+                err = str(e)[:140]
+        save(p, txt, err, tag)
+
+    def gpu_worker(idx):
+        tag = "GPU%d" % (idx + 1)
+        while not finished.is_set():
+            try:
+                p = q.get_nowait()
+                run_one(p, tag, 99, 0)
+                continue
+            except queue.Empty:
+                pass
+            if not gpu_first:
+                return
+            # 队列空了 → GPU 反正闲着：直接把 CPU 正在跑的那张复制一份双跑，
+            # 谁先出结果谁算（CPU 慢，基本都会被 GPU 抢先）。
+            cand = None
+            with lock:
+                now = _t.time()
+                for p, st in inflight.items():
+                    if p not in stolen and now - st >= STEAL_AFTER:
+                        cand = p
+                        break
+                if cand:
+                    stolen.add(cand)
+            if cand:
+                log("[%s] GPU 空闲 → 和 CPU 并行跑同一页（先完成者胜）" % tag)
+                run_one(cand, tag, 99, 0)
+                continue
+            with lock:
+                if done[0] >= len(paths):
+                    return
+                busy = bool(inflight)
+            if busy:
+                _t.sleep(0.4)
+                continue
+            return
+
+    def cpu_worker(idx):
+        tag = "CPU%d" % (idx + 1)
+        while not finished.is_set():
             try:
                 p = q.get_nowait()
             except queue.Empty:
                 return
-            try:
-                txt = ocr_image(p, max_tokens=max_tokens, gpu_layers=gpu_layers,
-                                target_width=target_width, threads=threads)
-                err = ""
-            except Exception as e:
-                txt, err = "", "%s: %s" % (type(e).__name__, str(e)[:140])
-            if not txt and gpu_layers > 0 and _is_oom(err):
-                try:
-                    txt = ocr_image(p, max_tokens=max_tokens, gpu_layers=0,
-                                    target_width=target_width, threads=ct or 4)
-                    err = ""
-                except Exception as e:
-                    err = str(e)[:140]
             with lock:
-                results[p] = txt
-                done[0] += 1
-                if on_result is not None:
-                    try:
-                        on_result(p, txt)
-                    except Exception as e:
-                        log("落盘失败：%s" % str(e)[:100])
-                el = _t.time() - t0
-                log("[%s] (%d/%d) %.0fs 累计 %.0fs%s"
-                    % (tag, done[0], len(paths), el, el, ("  失败：" + err) if err else ""))
+                inflight[p] = _t.time()
+            try:
+                run_one(p, tag, 0, ct)
+            finally:
+                with lock:
+                    inflight.pop(p, None)
 
-    ths = [threading.Thread(target=worker, args=(99, 0, "GPU%d" % (i + 1)), daemon=True)
-           for i in range(ng)]
-    ths += [threading.Thread(target=worker, args=(0, ct, "CPU%d" % (i + 1)), daemon=True)
-            for i in range(nc)]
+    ths = [threading.Thread(target=gpu_worker, args=(i,), daemon=True) for i in range(ng)]
+    ths += [threading.Thread(target=cpu_worker, args=(i,), daemon=True) for i in range(nc)]
     for th in ths:
         th.start()
     for th in ths:

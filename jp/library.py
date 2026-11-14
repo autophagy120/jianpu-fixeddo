@@ -1630,7 +1630,7 @@ def import_manual(files, title: str = "", key: str = "", target: str = "",
     ids = r.get("ids") or []
     if ids:
         log("人工导入：开始 OCR（%d 页）" % len(ids))
-        ocr_batch_ids(ids, mode="max", log=log)
+        ocr_batch_ids(ids, mode="gpu_first", log=log)
         for i in ids:
             upd = {}
             it = get(i) or {}
@@ -1673,7 +1673,7 @@ def ensure_ocr(it: dict, force: bool = False) -> str:
     return txt
 
 
-def ocr_batch_ids(ids, mode: str = "serial", log=print) -> dict:
+def ocr_batch_ids(ids, mode: str = "gpu_first", log=print) -> dict:
     """批量 OCR：把缺文本的页一起送本地模型。
 
     mode = serial / cpu_gpu / gpu2，见 `xiaomi_ocr.ocr_batch`。

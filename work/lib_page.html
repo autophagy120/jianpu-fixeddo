@@ -100,7 +100,8 @@ input[type=text],select{background:#12171d;color:var(--fg);border:1px solid var(
   <div style="position:relative">
     <button onclick="toggleSet(event)">设置 ▾</button>
     <div id="setMenu" style="display:none;position:absolute;right:0;top:34px;background:#1b222b;border:1px solid #2b333d;border-radius:9px;padding:6px;min-width:200px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.6)">
-      <div class="mi" onclick="setOcrMode('serial')">OCR 方式：串行（默认）</div>
+      <div class="mi" onclick="setOcrMode('gpu_first')">OCR 方式：GPU 优先 + 1 CPU 兜底（默认）</div>
+      <div class="mi" onclick="setOcrMode('serial')">OCR 方式：串行</div>
       <div class="mi" onclick="setOcrMode('cpu_gpu')">OCR 方式：CPU+GPU 并行</div>
       <div class="mi" onclick="setOcrMode('gpu2')">OCR 方式：双 GPU 并行（显存不够会自动退回 CPU）</div>
       <div class="mi" onclick="setOcrMode('max')">OCR 方式：最大调度（3 GPU + 3 CPU 抢任务）</div>
@@ -229,12 +230,12 @@ function cardHtml(it){
       '<button class="mini" onclick="groupPick(\''+it.id+'\')">归类…</button></div></div></div>';
 }
 var IMP_MODE='manual';
-var OCR_MODE = (function(){ try{return localStorage.getItem('ocrmode')||'max';}catch(e){return 'max';} })();
+var OCR_MODE = (function(){ try{return localStorage.getItem('ocrmode')||'gpu_first';}catch(e){return 'gpu_first';} })();
 function setOcrMode(m){
   OCR_MODE = m;
   try{ localStorage.setItem('ocrmode', m); }catch(e){}
   document.getElementById('setMenu').style.display='none';
-  toast('OCR 方式：'+({serial:'串行',cpu_gpu:'CPU+GPU 并行',gpu2:'双 GPU 并行',max:'最大调度 3GPU+3CPU'}[m]||m));
+  toast('OCR 方式：'+({serial:'串行',cpu_gpu:'CPU+GPU 并行',gpu2:'双 GPU 并行',max:'最大调度',gpu_first:'GPU 优先 + CPU 兜底'}[m]||m));
 }
 var SORT_MODE = (function(){ try{return localStorage.getItem('lbsort')||'manual';}catch(e){return 'manual';} })();
 function setGroupSort(m){
@@ -830,7 +831,7 @@ function needAI(fn){
 function runAll(mode,force){
   if(mode==='ai'){ needAI(function(){ runAll2(mode,force); }); return; }
   if(mode==='ocr'){
-    var lb={serial:'串行',cpu_gpu:'CPU+GPU 并行',gpu2:'双 GPU 并行',max:'最大调度 3GPU+3CPU'}[OCR_MODE]||OCR_MODE;
+    var lb={serial:'串行',cpu_gpu:'CPU+GPU 并行',gpu2:'双 GPU 并行',max:'最大调度',gpu_first:'GPU 优先 + CPU 兜底'}[OCR_MODE]||OCR_MODE;
     if(!confirm('批量 OCR（只提取文字，本地跑，不花 token）\n方式：'+lb+'。继续？')) return;
     api('/api/ocr_all',{ocr_mode:OCR_MODE}).then(function(r){
       if(started(r)) toast('OCR 中（'+lb+'）…',60000);
