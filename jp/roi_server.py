@@ -1106,6 +1106,11 @@ class State:
         self.uncovered = h["uncovered"]
         self.key_changes = h["kc"]
         self.target_pc = h["target"]
+        # 撤销之后**必须重新出图并落盘**：
+        # 否则内存回退了、缓存里还是改后的状态，过一会儿/重开又变回去
+        # —— 也就是用户说的"自动保存把撤销覆盖了"。
+        self.refresh(lazy=True)
+        self._schedule_autosave(0.4)
         return True
 
 
