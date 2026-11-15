@@ -540,13 +540,21 @@ function applyOct(v){
     }
   });
 }
-function applyEdit(d,o){
+function applyEdit(d,o,acc){
   if(selId===null||selId<0) return;
   var id=selId, b=boxOf(id);
-  api('/edit',{id:id,digit:d,oct:o}).then(function(r){
+  var body={id:id,digit:d,oct:o};
+  // acc 只在"确实点了升降号按钮"时才发：不传 = 保留原来的升降号
+  if(acc!==undefined) body.acc=acc;
+  api('/edit',body).then(function(r){
     if(r.ok){
-      if(selData){selData.digit=d; selData.oct=o;}
-      log('#'+id+' → '+d+' 点'+o);
+      if(selData){
+        selData.digit=d; selData.oct=o;
+        if(acc!==undefined) selData.acc=acc;
+        log('#'+id+' → '+(acc===undefined?(selData.acc||''):acc)+d+' 点'+o);
+      }else{
+        log('#'+id+' → '+d+' 点'+o);
+      }
       return afterEdit(b?[b]:null).then(reselSel);
     }
   });
