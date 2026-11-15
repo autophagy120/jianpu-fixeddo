@@ -65,6 +65,7 @@ button[disabled]{opacity:.5;cursor:progress}
       <button onclick="saveLib()" title="把当前识别结果和修改写进库缓存，下次打开秒开">保存到库</button>
       <button onclick="openRead()" title="只读、预渲染、多页并排的演奏视角">演奏阅读</button>
       <button onclick="clearAll()" title="把本页识别出的音全清掉，回到满屏橙框，可以纯手工重做">清空本页</button>
+      <button onclick="restoreBak()" title="从清空前的缓存备份恢复本页识别结果">撤销清空</button>
       <button id="kcBtn" onclick="toggleKc()">标记转调</button>
       <span class="t">原调</span><select id="srcKey" onchange="setSourceKey(this.value)" title="默认整份谱跟着第一页；改这里会同步到整份（可勾「仅本页」）"></select>
       <label class="t" style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="keyScopePage">仅本页</label>
@@ -729,9 +730,15 @@ function setStrength(level){
     });
 }
 function clearAll(){
-  if(!confirm('清空本页所有已识别音符？（可回退）')) return;
+  if(!confirm('清空本页所有已识别音符？\n\n会先自动备份一份缓存，之后可以用工具栏「撤销清空」恢复；\n撤销栈（↶）也能回退一步。确定继续？')) return;
   api('/clear_all',{}).then(function(r){
     if(r.ok){ log('已清空 '+r.n+' 个音，现在可以手工点橙框重做'); selId=null; selIds=[]; clearSel(); return applyRender(); }
+  });
+}
+function restoreBak(){
+  api('/restore_bak',{}).then(function(r){
+    if(r.ok){ log('已从备份恢复识别结果'); return api('/api/open',{id:ST.page.id}).then(function(){ location.reload(); }); }
+    log('没有可用的备份（只有点过「清空本页」才会留备份）');
   });
 }
 function openRead(){
