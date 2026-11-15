@@ -233,9 +233,12 @@ def _bg_sig(page: core.Page, pairs, erase_mode: str, med_h: float, wipe: bool = 
     h.update(np.asarray(page.gray.shape, dtype=np.int64).tobytes())
     h.update(str(erase_mode).encode("utf8"))
     h.update(b"wipe1" if wipe else b"wipe0")
-    for s, _o in pairs:
+    for s, o in pairs:
         h.update(np.asarray(s.box, dtype=np.float64).tobytes())
         h.update(np.asarray([float(s.row)], dtype=np.float64).tobytes())
+        # 擦除现在还会按"这个音有没有标八度"去清掉旁边的黑点，
+        # 所以 octave 必须进签名，否则改了高/低音还会命中旧底图。
+        h.update(np.asarray([float(getattr(o, "octave", 0))], dtype=np.float64).tobytes())
         for b in s.dot_boxes:
             h.update(np.asarray(b, dtype=np.float64).tobytes())
         if s.acc_box is not None:
@@ -306,6 +309,37 @@ def _build_background(page: core.Page, pairs, erase_mode: str, med_h: float,
             extra.append(slot.acc_box)
         if extra:
             _erase_boxes(gray, extra, pad=1)
+
+    # 手动标"高音/低音"的补充擦除：
+    # 原谱印着八度点、但几何没把它算进这个音的 dot_boxes 时，那个黑点会留在图上，
+    # 红点再画上去就是"黑白两个点"。这里按"离谁最近"把点状小连通块归给某个音，
+    # **只有当这个音确实有八度（octave != 0）时才擦**，避免误擦还没识别的点。
+    if comps:
+        _pairs_o = [(s1, int(getattr(o1, "octave", 0))) for s1, o1 in pairs]
+        doty = [c for c in comps
+                if 0.10 * med_h <= c.h <= 0.55 * med_h and c.w <= 0.75 * c.h]
+        if doty:
+            centers = [((s1.box[0] + s1.box[2]) / 2.0,
+                        (s1.box[1] + s1.box[3]) / 2.0) for s1, _o in pairs]
+            for c in doty:
+                cx, cy = c.x + c.w / 2.0, c.y + c.h / 2.0
+                best, bd = -1, None
+                for i, (px, py) in enumerate(centers):
+                    if abs(cx - px) > 0.55 * med_h:
+                        continue
+                    d = abs(cy - py)
+                    if bd is None or d < bd:
+                        bd, best = d, i
+                if best < 0 or bd is None or bd > 1.7 * med_h:
+                    continue
+                if _pairs_o[best][1] == 0:
+                    continue          # 这个音本来没标八度，别动它周围的黑点
+                # 别擦到下一个音的数字身上
+                nb = _pairs_o[best][0].box
+                if (c.x < nb[2] and c.x + c.w > nb[0]
+                        and c.y < nb[3] and c.y + c.h > nb[1]):
+                    continue
+                _erase_boxes(gray, [c.box], pad=1)
 
     # 未配对的行整行擦白（必须在绘制**之前**做，否则重建 img 会把红字抹掉）
     try:
