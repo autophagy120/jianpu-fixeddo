@@ -751,5 +751,21 @@ window.addEventListener('keydown',function(e){
 window.addEventListener('keyup',function(e){ if(e.key==='Control'&&showOrig){showOrig=false;draw();} });
 window.addEventListener('blur',function(){ if(showOrig){showOrig=false;draw();} });
 log('页面已加载 build __BUILD__');
+
+/* 诊断钩子：?selftest=1 时自动切到 1=G，并把结果写进标题，便于无头浏览器检查 */
+if(location.search.indexOf('selftest')>=0){
+  setTimeout(function(){
+    try{ setTarget('G'); }catch(e){}
+    setTimeout(function(){
+      var h=0;
+      try{
+        var d=ctx.getImageData(0,0,Math.min(800,cv.width),Math.min(800,cv.height)).data;
+        for(var i=0;i<d.length;i+=137) h=(h*33+d[i])>>>0;
+      }catch(e){}
+      document.title='SELFTEST target='+(ST.target_key||'?')+' src='+(ST.source_key||'?')+
+        ' sel='+(document.getElementById('tgt')||{}).value+' img='+h;
+    }, 3000);
+  }, 1200);
+}
 reload();
 </script></body></html>
