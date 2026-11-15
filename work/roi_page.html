@@ -263,7 +263,8 @@ function reload(){
     };
     img.onerror=function(){log('图片加载失败');res();};
     img.src='/img?t='+Date.now();
-    if(!imgOrig.naturalWidth) imgOrig.src='/orig?t='+Date.now();
+    // 原图必须**每次换页都重取**：以前只在第一次加载，翻页后按 Ctrl 看到的还是第一页的底图
+    imgOrig.src='/orig?t='+Date.now();
   });
 }
 function loadNotes(){return fetch('/state').then(function(r){return r.json();}).then(function(j){
@@ -723,7 +724,12 @@ function zoom(d){zoomPct=Math.max(20,Math.min(400,zoomPct+(d>0?20:-20)));layout(
 function fitWidth(){if(!img.naturalWidth)return;zoomPct=Math.max(10,Math.round(wrap.clientWidth*0.97/img.naturalWidth*100));layout();}
 window.addEventListener('resize',function(){if(img.naturalWidth)layout();});
 window.addEventListener('keydown',function(e){
-  if(e.key==='Control'&&!showOrig){showOrig=true;draw();}
+  if(e.key==='Control'&&!showOrig){
+    showOrig=true;draw();
+    if(!imgOrig.naturalWidth){
+      imgOrig.onload=function(){ if(showOrig) draw(); };
+    }
+  }
   if((e.key==='Delete'||e.key==='Backspace')&&!insAt&&!kcMode){
     if(selIds.some(function(x){return x>=0;})){e.preventDefault();delSelected();}
     else if(selId!==null&&selId>=0){e.preventDefault();delNote();}
