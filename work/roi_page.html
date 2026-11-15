@@ -64,6 +64,7 @@ button[disabled]{opacity:.5;cursor:progress}
       </select>
       <button onclick="saveLib()" title="把当前识别结果和修改写进库缓存，下次打开秒开">保存到库</button>
       <button onclick="openRead()" title="只读、预渲染、多页并排的演奏视角">演奏阅读</button>
+      <button onclick="clearAll()" title="把本页识别出的音全清掉，回到满屏橙框，可以纯手工重做">清空本页</button>
       <button id="kcBtn" onclick="toggleKc()">标记转调</button>
       <span class="t">原调</span><select id="srcKey" onchange="setSourceKey(this.value)" title="默认整份谱跟着第一页；改这里会同步到整份（可勾「仅本页」）"></select>
       <label class="t" style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="keyScopePage">仅本页</label>
@@ -82,6 +83,8 @@ button[disabled]{opacity:.5;cursor:progress}
         <h2><span id="selTitle">选中音符</span>　<span id="selInfo"></span></h2>
         <div class="t2" id="selDigitTip">数字（点一下即改）</div><div class="g" id="selDigits"></div>
         <div class="t2">八度（点一下即改）</div><div class="g" id="selOcts"></div>
+        <div class="t2">升降号（点一下即改）</div><div class="g" id="selAccs"></div>
+        <div class="t2" id="selAccTip">原谱带 #/b 的话，这里补上</div>
         <div id="selMove" style="display:none;margin-top:8px">
           <div class="t2">这一段是不是"对齐错位"（数字被配到了隔壁槽位）？</div>
           <button onclick="assignSlot(selDigit,0,true)" title="把旁边那个同音挪到这个橙框位置，而不是新增一个">把旁边歪掉的同音挪过来</button>
@@ -96,6 +99,7 @@ button[disabled]{opacity:.5;cursor:progress}
         <h2>插入音符　<span id="insInfo"></span></h2>
         <div class="t2">点数字 = 直接插入（八度按当前的）</div><div class="g" id="insDigits"></div>
         <div class="t2">八度点（点一下 = 带点插入）</div><div class="g" id="insOcts"></div>
+        <div class="t2">升降号（先选好，再点数字/八度插入）</div><div class="g" id="insAccs"></div>
         <div class="t2">键盘 0-7 直接插 · Esc 取消</div>
         <div class="row"><button onclick="hideIns()">取消</button></div>
       </div>
@@ -142,7 +146,7 @@ var img=new Image(), imgOrig=new Image(), showOrig=false, NOTES=[], scale=1, zoo
 var base=document.createElement('canvas'), bctx=base.getContext('2d'), baseReady=false;
 var fitOnce=false;   // 首次打开自动适应宽度
 var moveDrag=null;   // Alt+拖动 = 微调音符坐标
-var selId=null, selIds=[], selData=null, selDigit='6', roi=null, plans=[], drag=null, insAt=null, insDigit='6', insOct=0, clickTimer=null;
+var selId=null, selIds=[], selData=null, selDigit='6', insAcc='', roi=null, plans=[], drag=null, insAt=null, insDigit='6', insOct=0, insAcc='', clickTimer=null;
 
 function log(s){var e=document.getElementById('log');e.textContent=(new Date().toLocaleTimeString()+'  '+s+'\n'+e.textContent).slice(0,2000);}
 var pending=0;
@@ -400,6 +404,15 @@ function buildDigits(id,cur,cb){
     d.appendChild(b);
   });
 }
+function buildAccs(id,cur,cb){
+  var d=document.getElementById(id); if(!d) return;
+  d.innerHTML='';
+  [['','还原'],['#','♯'],['b','♭']].forEach(function(p){
+    var b=document.createElement('button'); b.className='oc'+(p[0]===(cur||'')?' on':'');
+    b.textContent=p[1]; b.onclick=function(){cb(p[0]);};
+    d.appendChild(b);
+  });
+}
 function buildOcts(id,cur,cb){
   var o=document.getElementById(id); o.innerHTML='';
   OCTS.forEach(function(p){
@@ -444,12 +457,13 @@ function showSel(n, keepMulti){
   }else{
     card.className='card';
     document.getElementById('selTitle').textContent='选中音符';
-    document.getElementById('selInfo').innerHTML='#'+n.id+' 行'+n.row+' <b>'+n.digit+'</b> 点'+n.oct+
+    document.getElementById('selInfo').innerHTML='#'+n.id+' 行'+n.row+' <b>'+(n.acc||'')+n.digit+'</b> 点'+n.oct+
       (n.sc==='aux'?' · 辅助':' · 主字号')+(selIds.length>1?('　<b>已选 '+selIds.length+' 个</b>'):'');
     document.getElementById('selDigitTip').textContent='数字（点一下即改）';
     var _mv2=document.getElementById('selMove'); if(_mv2) _mv2.style.display='none';
     buildDigits('selDigits',n.digit,function(ch){applyEdit(ch,selData?selData.oct:n.oct);});
     buildOcts('selOcts',n.oct,function(v){applyOct(v);});
+    buildAccs('selAccs',n.acc||'',function(a){applyEdit(n.digit,selData?selData.oct:n.oct,a);});
     buildSizes(n);
   }
   draw();
@@ -578,11 +592,12 @@ function showIns(x,y){
     doInsert(insOct);
   });
   buildOcts('insOcts',0,function(v){insOct=v; doInsert(v);});
+  buildAccs('insAccs',insAcc,function(a){insAcc=a;});
 }
 function hideIns(){document.getElementById('insCard').style.display='none';insAt=null;}
 function doInsert(oct){
   if(!insAt) return;
-  api('/insert',{x:insAt.x,y:insAt.y,digit:insDigit,oct:oct}).then(function(r){
+  api('/insert',{x:insAt.x,y:insAt.y,digit:insDigit,oct:oct,acc:insAcc}).then(function(r){
     hideIns();
     if(r.ok){log('插入 '+insDigit+' 点'+oct); return applyRender();}
   });
@@ -712,6 +727,12 @@ function setStrength(level){
       busy(false);
       document.querySelectorAll('button').forEach(function(x){x.disabled=false;});
     });
+}
+function clearAll(){
+  if(!confirm('清空本页所有已识别音符？（可回退）')) return;
+  api('/clear_all',{}).then(function(r){
+    if(r.ok){ log('已清空 '+r.n+' 个音，现在可以手工点橙框重做'); selId=null; selIds=[]; clearSel(); return applyRender(); }
+  });
 }
 function openRead(){
   var id=(ST.page||{}).id;
