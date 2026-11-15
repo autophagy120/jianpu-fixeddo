@@ -448,8 +448,8 @@ function showSel(n, keepMulti){
       (n.sc==='aux'?' · 辅助':' · 主字号')+(selIds.length>1?('　<b>已选 '+selIds.length+' 个</b>'):'');
     document.getElementById('selDigitTip').textContent='数字（点一下即改）';
     var _mv2=document.getElementById('selMove'); if(_mv2) _mv2.style.display='none';
-    buildDigits('selDigits',n.digit,function(ch){applyEdit(ch,n.oct);});
-    buildOcts('selOcts',n.oct,function(v){applyEdit(n.digit,v);});
+    buildDigits('selDigits',n.digit,function(ch){applyEdit(ch,selData?selData.oct:n.oct);});
+    buildOcts('selOcts',n.oct,function(v){applyOct(v);});
     buildSizes(n);
   }
   draw();
@@ -514,11 +514,26 @@ function setSizeRow(row,cls){
              return afterEdit(boxes).then(reselSel);}
   });
 }
+function applyOct(v){
+  if(selId===null||selId<0) return;
+  var id=selId, b=boxOf(id);
+  api('/oct',{id:id,oct:v}).then(function(r){
+    if(r.ok){
+      if(selData) selData.oct=v;
+      log('#'+id+' 八度 → '+v);
+      return afterEdit(b?[b]:null).then(reselSel);
+    }
+  });
+}
 function applyEdit(d,o){
   if(selId===null||selId<0) return;
   var id=selId, b=boxOf(id);
   api('/edit',{id:id,digit:d,oct:o}).then(function(r){
-    if(r.ok){log('#'+id+' → '+d+' 点'+o); return afterEdit(b?[b]:null);}
+    if(r.ok){
+      if(selData){selData.digit=d; selData.oct=o;}
+      log('#'+id+' → '+d+' 点'+o);
+      return afterEdit(b?[b]:null).then(reselSel);
+    }
   });
 }
 function assignSlot(d,o,move){
